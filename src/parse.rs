@@ -138,6 +138,7 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
                 "AND" => out.1 = "ANDM".into(),
                 "OR" => out.1 = "ORM".into(),
                 "XOR" => out.1 = "XORM".into(),
+                "CMP" => out.1 = "CMPM".into(),
                 _ => {},
             }
         }

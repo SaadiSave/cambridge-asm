@@ -32,6 +32,8 @@ pub fn cmpm(ctx: &mut Context, op: Op) {
         .expect("Operand is not an integer");
     
     ctx.cmpr = ctx.acc == x;
+
+    ctx.increment()
 }
 
 pub fn cmi(ctx: &mut Context, op: Op) {
