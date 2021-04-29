@@ -4,7 +4,7 @@ author: Saadi Save <github.com/SaadiSave>
 about: Run pseudoassembly from Cambridge International syllabus 9618
 args:
     - INPUT:
-        help: Sets the input file to use
+        help: Sets the input file containing pseudoassembly
         required: true
         index: 1
     - verbose:
