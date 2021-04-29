@@ -1,0 +1,21 @@
+address = { NUMBER+ }
+label = @{ ALPHA+ ~ ":" }
+op = { ALPHA+ }
+immediate = _{ "#" ~ ( "b" | "B" | "x" | "X" )? ~ immedata }
+operand = { immediate | address | ALPHA+ }
+
+instruction = ${ ( address | label )? ~ WHITESPACE+? ~ op ~ WHITESPACE+? ~ operand? ~ NEWLINE }
+prog = ${ ANYSPACE ~ instruction+ ~ ANYSPACE }
+
+memoryentry = ${ ( address | label ) ~ WHITESPACE+? ~ data? ~ NEWLINE }
+memory = ${ ANYSPACE ~ memoryentry+ ~ ANYSPACE }
+
+WHITESPACE = _{ " " | "\t" }
+NEWLINE = _{ "\n" }
+ANYSPACE = _{ (WHITESPACE | NEWLINE)* }
+NUMBER = _{ ('0'..'9') }
+ALPHA = _{ ('a'..'z' | 'A'..'Z' ) }
+ALPHANUM = _{ ALPHA+ | NUMBER+ }
+HEX = _{ ('0'..'9') | ('A'..'F') | ('a'..'f') }
+data = { NUMBER+ }
+immedata = { HEX+ | NUMBER+ }

@@ -1,0 +1,12 @@
+[package]
+name = "cambridge-asm"
+version = "0.1.0"
+authors = ["SaadiSave <saadisave@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pest = "2"
+pest_derive = "2"
+clap = { version = "2.33", features = ["yaml"]}
