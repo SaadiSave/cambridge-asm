@@ -23,8 +23,6 @@ fn main() {
     let mut exec = parse::parse(&path);
 
     exec.exec();
-
-    println!("Hello, world!");
 }
 
 mod exec;
