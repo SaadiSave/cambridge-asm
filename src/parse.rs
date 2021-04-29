@@ -1,4 +1,8 @@
-#![allow(dead_code)]
+// Copyright (c) 2021 Saadi Save
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
 use pest::{Parser, iterators::{Pair, Pairs}};
 use crate::exec::{Context, Cmd, Executor, Func, self, Memory};
 use std::{collections::BTreeMap, path::PathBuf};
