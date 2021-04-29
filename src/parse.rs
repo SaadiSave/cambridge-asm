@@ -5,7 +5,7 @@
 
 use pest::{Parser, iterators::{Pair, Pairs}};
 use crate::exec::{Context, Cmd, Executor, Func, self, Memory};
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, path::Path};
 
 #[derive(Parser)]
 #[grammar = "pasm.pest"]
@@ -15,7 +15,7 @@ type Inst = (Option<String>, String, Option<String>);
 type FinInst = (usize, Cmd);
 type Mem = (String, Option<String>);
 
-pub fn parse(path: &PathBuf) -> Executor {
+pub fn parse(path: &Path) -> Executor {
     let x = std::fs::read_to_string(path).expect("File cannot be read");
 
     let vec: Vec<_> = x.split("\n\n").collect();
@@ -251,7 +251,7 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
 fn parse_test() {
     let t = std::time::Instant::now();
 
-    let mut exec = parse(&PathBuf::from("src/example.pasm"));
+    let mut exec = parse(&std::path::PathBuf::from("src/example.pasm"));
     println!("\n{:?}", &t.elapsed());
     exec.exec();
     println!("\n{:?}", &t.elapsed());
