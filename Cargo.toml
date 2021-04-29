@@ -1,11 +1,11 @@
 [package]
 name = "cambridge-asm"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["SaadiSave <https://github.com/SaadiSave>"]
 edition = "2018"
 license = "MPL-2.0"
 description = "Run pseudoassembly from Cambridge International syllabus 9618"
-repository = "https://github.com/SaadiSave"
+repository = "https://github.com/SaadiSave/cambridge-asm"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
