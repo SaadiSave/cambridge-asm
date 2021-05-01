@@ -16,7 +16,7 @@ memoryentry = ${ ( address | label ) ~ WHITESPACE+? ~ data? ~ NEWLINE }
 memory = ${ ANYSPACE ~ memoryentry+ ~ ANYSPACE }
 
 WHITESPACE = _{ " " | "\t" }
-NEWLINE = _{ "\n" }
+NEWLINE = _{ "\r\n" | "\n" }
 ANYSPACE = _{ (WHITESPACE | NEWLINE)* }
 NUMBER = _{ ('0'..'9') }
 ALPHA = _{ ('a'..'z' | 'A'..'Z' ) }

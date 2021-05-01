@@ -18,7 +18,19 @@ type Mem = (String, Option<String>);
 pub fn parse(path: &Path) -> Executor {
     let x = std::fs::read_to_string(path).expect("File cannot be read");
 
-    let vec: Vec<_> = x.split("\n\n").collect();
+    let vec = {
+        let mut v: Vec<_> = x.split("\n\n").collect();
+
+        if v.len() != 2 {
+            v = x.split("\r\n\r\n").collect();
+        }
+
+        if v.len() != 2 {
+            panic!("Unable to parse. Your input may not contain one line between the program and the memory. This was your input:\n{}", &x);
+        }
+
+        v
+    };
 
     let pairs = (PasmParser::parse(Rule::prog, vec[0]).unwrap(), PasmParser::parse(Rule::memory, vec[1]).unwrap());
 
