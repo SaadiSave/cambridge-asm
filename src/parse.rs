@@ -252,7 +252,14 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
 fn parse_test() {
     let t = std::time::Instant::now();
 
-    let mut exec = parse(&std::path::PathBuf::from("src/example.pasm"));
+    let mut exec = parse(&std::path::PathBuf::from("examples/ex1.pasm"));
+    println!("\n{:?}", &t.elapsed());
+    exec.exec();
+    println!("\n{:?}", &t.elapsed());
+
+    let t = std::time::Instant::now();
+    
+    let mut exec = parse(&std::path::PathBuf::from("examples/ex2.pasm"));
     println!("\n{:?}", &t.elapsed());
     exec.exec();
     println!("\n{:?}", &t.elapsed());
