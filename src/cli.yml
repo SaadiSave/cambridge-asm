@@ -1,7 +1,7 @@
 name: Cambridge Pseudoassembly Interpreter
-version: "0.1.4"
+version: "0.2.0"
 author: Saadi Save <github.com/SaadiSave>
-about: Run pseudoassembly from Cambridge International syllabus 9618
+about: Run pseudoassembly from Cambridge International syllabus 9618 (2021)
 args:
     - INPUT:
         help: Sets the input file containing pseudoassembly
@@ -11,4 +11,4 @@ args:
         short: v
         multiple: true
         required: false
-        help: Sets the level of verbosity
+        help: Sets the level of verbosity (currenty defunct)
