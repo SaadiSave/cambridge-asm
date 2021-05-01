@@ -19,7 +19,7 @@ pub fn cmp(ctx: &mut Context, op: Op) {
         .expect("No operand")
         .parse()
         .expect("Operand is not an integer");
-    
+
     ctx.cmpr = ctx.acc == ctx.mem.get(&x);
 
     ctx.increment()
@@ -30,7 +30,7 @@ pub fn cmpm(ctx: &mut Context, op: Op) {
         .expect("No operand")
         .parse()
         .expect("Operand is not an integer");
-    
+
     ctx.cmpr = ctx.acc == x;
 
     ctx.increment()

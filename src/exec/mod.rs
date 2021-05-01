@@ -88,8 +88,9 @@ impl Debug for Executor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("Executor {\nprog: {\n").unwrap();
         for i in self.prog.0.iter() {
-            f.write_fmt(format_args!("{:?}\n", (i.0, (i.1).1.as_ref()))).unwrap();
-        };
+            f.write_fmt(format_args!("{:?}\n", (i.0, (i.1).1.as_ref())))
+                .unwrap();
+        }
         f.write_str("}\n").unwrap();
         f.write_fmt(format_args!("{:?}", self.ctx))
     }
@@ -123,7 +124,6 @@ fn exec() {
     mem.insert(203, 0);
     mem.insert(204, 75);
 
-
     let mut exec = Executor {
         prog: Memory(prog),
         ctx: Context {
@@ -134,7 +134,7 @@ fn exec() {
             mem: Memory(mem),
         },
     };
-    
+
     let t = std::time::Instant::now();
     exec.exec();
     println!("{:?}", t.elapsed())

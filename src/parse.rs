@@ -3,8 +3,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use pest::{Parser, iterators::{Pair, Pairs}};
-use crate::exec::{Context, Cmd, Executor, Func, self, Memory};
+use crate::exec::{self, Cmd, Context, Executor, Func, Memory};
+use pest::{
+    iterators::{Pair, Pairs},
+    Parser,
+};
 use std::{collections::BTreeMap, path::Path};
 
 #[derive(Parser)]
@@ -32,12 +35,15 @@ pub fn parse(path: &Path) -> Executor {
         v
     };
 
-    let pairs = (PasmParser::parse(Rule::prog, vec[0]).unwrap(), PasmParser::parse(Rule::memory, vec[1]).unwrap());
+    let pairs = (
+        PasmParser::parse(Rule::prog, vec[0]).unwrap(),
+        PasmParser::parse(Rule::memory, vec[1]).unwrap(),
+    );
 
     let instructions = get_insts(pairs.0);
 
     let mut exec = process_insts(&instructions);
-    
+
     let mems = get_mems(pairs.1);
 
     let mems = process_mems(&mems, &mut exec);
@@ -56,12 +62,18 @@ pub fn parse(path: &Path) -> Executor {
 
     Executor {
         prog: Memory(prog),
-        ctx: Context { cmpr: false, mar: 0, acc: 0, ix: 0, mem: Memory(mem)},
+        ctx: Context {
+            cmpr: false,
+            mar: 0,
+            acc: 0,
+            ix: 0,
+            mem: Memory(mem),
+        },
     }
 }
 
 fn get_fn(op: &str) -> Func {
-    use exec::{mov, cmp, io, arith, bitman};
+    use exec::{arith, bitman, cmp, io, mov};
     match op {
         "LDM" => mov::ldm,
         "LDD" => mov::ldd,
@@ -112,17 +124,22 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
             for i in x {
                 match i.as_rule() {
                     Rule::address => out.0 = Some(i.as_str().into()),
-                    Rule::label => out.0 = {
-                        let x = i.as_str().to_string();
-                        Some(x.replace(":", ""))
-                    },
+                    Rule::label => {
+                        out.0 = {
+                            let x = i.as_str().to_string();
+                            Some(x.replace(":", ""))
+                        }
+                    }
                     Rule::op => out.1 = i.as_str().into(),
                     Rule::operand => out.2 = Some(i.as_str().into()),
-                    _ => panic!("{} is not an address, label, op, or operand token", &i.as_str()),
+                    _ => panic!(
+                        "{} is not an address, label, op, or operand token",
+                        &i.as_str()
+                    ),
                 }
             }
-        },
-        _ => panic!("Not an instruction")
+        }
+        _ => panic!("Not an instruction"),
     }
 
     if let Some(mut op) = out.2.clone() {
@@ -130,14 +147,18 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
             op.remove(0);
 
             match op.chars().next().unwrap() {
-                'b' | 'B' => out.2 = {
-                    op.remove(0);
-                    Some(usize::from_str_radix(&op, 2).unwrap().to_string())
-                },
-                'x' | 'X' => out.2 = {
-                    op.remove(0);
-                    Some(usize::from_str_radix(&op, 16).unwrap().to_string())
-                },
+                'b' | 'B' => {
+                    out.2 = {
+                        op.remove(0);
+                        Some(usize::from_str_radix(&op, 2).unwrap().to_string())
+                    }
+                }
+                'x' | 'X' => {
+                    out.2 = {
+                        op.remove(0);
+                        Some(usize::from_str_radix(&op, 16).unwrap().to_string())
+                    }
+                }
                 '0'..='9' => out.2 = Some(op.parse::<usize>().unwrap().to_string()),
                 _ => panic!("{} is an invalid operand", &op),
             }
@@ -151,7 +172,7 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
                 "OR" => out.1 = "ORM".into(),
                 "XOR" => out.1 = "XORM".into(),
                 "CMP" => out.1 = "CMPM".into(),
-                _ => {},
+                _ => {}
             }
         }
     }
@@ -161,7 +182,7 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
 
 fn get_insts(inst: Pairs<Rule>) -> Vec<Inst> {
     let mut out = Vec::new();
-    
+
     for pair in inst {
         for inner_pair in pair.into_inner() {
             out.push(get_inst(inner_pair));
@@ -197,7 +218,7 @@ fn process_insts(insts: &[Inst]) -> Vec<FinInst> {
     for i in int {
         out.push((i.0, (get_fn(&(i.1).0), (i.1).1)))
     }
-    
+
     out
 }
 
@@ -209,16 +230,18 @@ fn get_mem(mem: Pair<Rule>) -> Mem {
             for i in x {
                 match i.as_rule() {
                     Rule::address => out.0 = i.as_str().into(),
-                    Rule::label => out.0 = {
-                        let x = i.as_str().to_string();
-                        x.replace(":", "")
-                    },
+                    Rule::label => {
+                        out.0 = {
+                            let x = i.as_str().to_string();
+                            x.replace(":", "")
+                        }
+                    }
                     Rule::data => out.1 = Some(i.as_str().into()),
                     _ => panic!("{} is not an address, label or data", &i.as_str()),
                 }
             }
-        },
-        _ => panic!("Not an memory entry")
+        }
+        _ => panic!("Not an memory entry"),
     }
 
     out
@@ -226,7 +249,7 @@ fn get_mem(mem: Pair<Rule>) -> Mem {
 
 fn get_mems(mem: Pairs<Rule>) -> Vec<Mem> {
     let mut out = Vec::new();
-    
+
     for pair in mem {
         for inner_pair in pair.into_inner() {
             out.push(get_mem(inner_pair));
@@ -250,7 +273,10 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
     let mut int = Vec::new();
 
     for (i, j) in mems.iter().enumerate() {
-        int.push((i, j.1.clone().unwrap_or_else(|| "0".into()).parse().unwrap()));
+        int.push((
+            i,
+            j.1.clone().unwrap_or_else(|| "0".into()).parse().unwrap(),
+        ));
     }
 
     for i in links {
@@ -270,7 +296,7 @@ fn parse_test() {
     println!("\n{:?}", &t.elapsed());
 
     let t = std::time::Instant::now();
-    
+
     let mut exec = parse(&std::path::PathBuf::from("examples/ex2.pasm"));
     println!("\n{:?}", &t.elapsed());
     exec.exec();

@@ -43,16 +43,15 @@ pub fn inp(ctx: &mut Context, _: Op) {
 
 // Custom instruction for debug logging
 pub fn dbg(ctx: &mut Context, op: Op) {
-    let x = op
-        .expect("No operand");
+    let x = op.expect("No operand");
 
     let out = match x.as_str() {
         "ix" | "IX" => ctx.ix,
         "acc" | "ACC" => ctx.acc,
         _ => match x.parse() {
             Ok(s) => ctx.mem.get(&s),
-            Err(_) => panic!("{} is not a register or a memory address", &x)
-        }
+            Err(_) => panic!("{} is not a register or a memory address", &x),
+        },
     };
 
     println!("{}", &out);
@@ -67,10 +66,12 @@ pub fn rin(ctx: &mut Context, _: Op) {
     std::io::stdin()
         .read_line(&mut x)
         .expect("Unable to read stdin");
-    
+
     x.pop();
 
-    ctx.acc = x.parse().unwrap_or_else(|_| panic!("'{}' is not an integer", &x));
+    ctx.acc = x
+        .parse()
+        .unwrap_or_else(|_| panic!("'{}' is not an integer", &x));
 
     ctx.increment();
 }

@@ -50,26 +50,24 @@ pub fn subm(ctx: &mut Context, op: Op) {
 }
 
 pub fn inc(ctx: &mut Context, op: Op) {
-    let x = op
-        .expect("No operand");
+    let x = op.expect("No operand");
 
     match x.as_str() {
         "ix" | "IX" => ctx.ix += 1,
         "acc" | "ACC" => ctx.acc += 1,
-        _ => panic!("{} is an invalid register", &x)
+        _ => panic!("{} is an invalid register", &x),
     }
 
     ctx.increment();
 }
 
 pub fn dec(ctx: &mut Context, op: Op) {
-    let x = op
-        .expect("No operand");
+    let x = op.expect("No operand");
 
     match x.as_str() {
         "ix" | "IX" => ctx.ix -= 1,
         "acc" | "ACC" => ctx.acc -= 1,
-        _ => panic!("{} is an invalid register", &x)
+        _ => panic!("{} is an invalid register", &x),
     }
 
     ctx.increment();

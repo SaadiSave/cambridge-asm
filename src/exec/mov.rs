@@ -64,12 +64,11 @@ pub fn ldr(ctx: &mut Context, op: Op) {
 }
 
 pub fn mov(ctx: &mut Context, op: Op) {
-    let x = op
-        .expect("No operand");
+    let x = op.expect("No operand");
 
     match x.as_str() {
         "ix" | "IX" => ctx.ix = ctx.acc,
-        _ => panic!("{} is an invalid register", &x)
+        _ => panic!("{} is an invalid register", &x),
     }
 
     ctx.increment();
