@@ -75,7 +75,7 @@ pub struct Executor {
 impl Executor {
     pub fn exec(&mut self) {
         loop {
-            if self.ctx.mar as usize== self.prog.0.len() {
+            if self.ctx.mar == self.prog.0.len() {
                 break;
             }
             let cir = self.prog.get(&self.ctx.mar);

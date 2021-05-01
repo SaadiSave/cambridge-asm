@@ -173,7 +173,7 @@ fn process_insts(insts: &[Inst]) -> Vec<FinInst> {
     let mut int = Vec::new();
 
     for (i, j) in insts.iter().enumerate() {
-        int.push((i as usize, (j.1.clone(), j.2.clone())));
+        int.push((i, (j.1.clone(), j.2.clone())));
     }
 
     for i in links {
@@ -238,7 +238,7 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
     let mut int = Vec::new();
 
     for (i, j) in mems.iter().enumerate() {
-        int.push((i as usize, j.1.clone().unwrap_or_else(|| "0".into()).parse().unwrap()));
+        int.push((i, j.1.clone().unwrap_or_else(|| "0".into()).parse().unwrap()));
     }
 
     for i in links {
