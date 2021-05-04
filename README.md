@@ -1,6 +1,6 @@
 # cambridge-asm
 
-[![Build](https://github.com/SaadiSave/cambridge-asm/actions/workflows/rust.yml/badge.svg)](https://github.com/SaadiSave/cambridge-asm/actions/workflows/rust.yml) [![Crates.io version](https://img.shields.io/crates/v/cambridge-asm)](https://crates.io/crates/cambridge-asm) [![Crates.io version](https://img.shields.io/crates/v/cambridge-asm?label=lib.rs)](https://lib.rs/crates/cambridge-asm)
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/saadisave/cambridge-asm/Build?label=Build&logo=github) [![Crates.io version](https://img.shields.io/crates/v/cambridge-asm)](https://crates.io/crates/cambridge-asm) [![Crates.io version](https://img.shields.io/crates/v/cambridge-asm?label=lib.rs)](https://lib.rs/crates/cambridge-asm)
 
 ## **Disclaimer**
 
