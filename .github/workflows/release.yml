@@ -3,16 +3,17 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
 
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    
     steps:
       - uses: actions/checkout@v2
 
-      - name: Set env
+      - name: Set release version
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
       
       - uses: actions-rs/toolchain@v1
@@ -20,7 +21,7 @@ jobs:
           toolchain: stable
       
       - name: Add targets
-        run: rustup target add x86_64-unknown-linux-musl x86_64-pc-windows-gnu x86_64-apple-darwin
+        run: rustup target add x86_64-unknown-linux-musl x86_64-pc-windows-gnu
       
       - name: Linux build
         run: cargo build --release --target x86_64-unknown-linux-musl
@@ -43,8 +44,8 @@ jobs:
       - name: Zipping windows
         run: zip cambridge-asm-x64-windows.zip cambridge-asm.exe LICENSE README.md
 
-      - name: Checksums
+      - name: Compute checksums
         run: sha256sum cambridge-asm-amd64-linux.zip > cambridge-asm-amd64-linux.zip.sha256sum && sha256sum cambridge-asm-x64-windows.zip > cambridge-asm-x64-windows.zip.sha256sum.txt
 
-      - name: release
+      - name: Release
         run: gh release create -t "cambridge-asm-${{ env.RELEASE_VERSION }}" ${{ env.RELEASE_VERSION }} cambridge-asm-amd64-linux.zip cambridge-asm-amd64-linux.zip.sha256sum cambridge-asm-x64-windows.zip cambridge-asm-x64-windows.zip.sha256sum.txt
