@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::exec::{self, Cmd, Context, Executor, Func, Memory};
+use crate::exec::{self, Cmd, Context, Executor, Func, Memory, Program};
 use pest::{
     iterators::{Pair, Pairs},
     Parser,
@@ -18,6 +18,7 @@ type Inst = (Option<String>, String, Option<String>);
 type FinInst = (usize, Cmd);
 type Mem = (String, Option<String>);
 
+#[must_use]
 pub fn parse(path: &Path) -> Executor {
     let x = std::fs::read_to_string(path).expect("File cannot be read");
 
@@ -35,18 +36,20 @@ pub fn parse(path: &Path) -> Executor {
         v
     };
 
+    let raw = Program::from(vec[0]);
+
     let pairs = (
         PasmParser::parse(Rule::prog, vec[0]).unwrap(),
         PasmParser::parse(Rule::memory, vec[1]).unwrap(),
     );
 
-    let instructions = get_insts(pairs.0);
+    let insts = get_insts(pairs.0);
 
-    let mut exec = process_insts(&instructions);
+    let mut insts = process_insts(&insts);
 
     let mems = get_mems(pairs.1);
 
-    let mems = process_mems(&mems, &mut exec);
+    let mems = process_mems(&mems, &mut insts);
 
     let mut mem = BTreeMap::new();
 
@@ -56,11 +59,12 @@ pub fn parse(path: &Path) -> Executor {
 
     let mut prog = BTreeMap::new();
 
-    for i in exec {
+    for i in insts {
         prog.insert(i.0, ((i.1).0, (i.1).1));
     }
 
     Executor {
+        raw,
         prog: Memory(prog),
         ctx: Context {
             cmpr: false,

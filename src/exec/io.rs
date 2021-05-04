@@ -3,17 +3,20 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use super::{Context, Op};
+use super::{Context, Op, PasmError, PasmResult};
 
-pub fn end(ctx: &mut Context, _: Op) {
-    ctx.increment();
+pub fn end(ctx: &mut Context, _: Op) -> PasmResult {
+    ctx.increment()
 }
 
-pub fn out(ctx: &mut Context, _: Op) {
+pub fn out(ctx: &mut Context, _: Op) -> PasmResult {
     let x = ctx.acc;
 
     if x > 127 {
-        panic!("{} is not valid ASCII", &x)
+        return Err(PasmError::from(format!(
+            "The value in the ACC, `{}`, is not valid ASCII.",
+            &x
+        )));
     }
 
     let x = [x as u8];
@@ -22,10 +25,10 @@ pub fn out(ctx: &mut Context, _: Op) {
 
     println!("{}", &out);
 
-    ctx.increment();
+    ctx.increment()
 }
 
-pub fn inp(ctx: &mut Context, _: Op) {
+pub fn inp(ctx: &mut Context, _: Op) -> PasmResult {
     let mut x = String::new();
 
     std::io::stdin()
@@ -38,29 +41,35 @@ pub fn inp(ctx: &mut Context, _: Op) {
         panic!("More than one character typed");
     }
 
-    ctx.increment();
+    ctx.increment()
 }
 
 // Custom instruction for debug logging
-pub fn dbg(ctx: &mut Context, op: Op) {
+pub fn dbg(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op.expect("No operand");
 
     let out = match x.as_str() {
         "ix" | "IX" => ctx.ix,
         "acc" | "ACC" => ctx.acc,
-        _ => match x.parse() {
-            Ok(s) => ctx.mem.get(&s),
-            Err(_) => panic!("{} is not a register or a memory address", &x),
-        },
+        _ => {
+            if let Ok(s) = x.parse() {
+                ctx.mem.get(&s)?
+            } else {
+                return Err(PasmError::from(format!(
+                    "{} is not a register or a memory address",
+                    &x
+                )));
+            }
+        }
     };
 
     println!("{}", &out);
 
-    ctx.increment();
+    ctx.increment()
 }
 
 // Raw input - directly input integers
-pub fn rin(ctx: &mut Context, _: Op) {
+pub fn rin(ctx: &mut Context, _: Op) -> PasmResult {
     let mut x = String::new();
 
     std::io::stdin()
@@ -73,5 +82,5 @@ pub fn rin(ctx: &mut Context, _: Op) {
         .parse()
         .unwrap_or_else(|_| panic!("'{}' is not an integer", &x));
 
-    ctx.increment();
+    ctx.increment()
 }

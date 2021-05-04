@@ -3,72 +3,80 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use super::{Context, Op};
+use super::{Context, Op, PasmError, PasmResult};
 
-pub fn add(ctx: &mut Context, op: Op) {
+pub fn add(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op
-        .expect("No operand")
+        .ok_or_else(|| PasmError::from("No Operand"))?
         .parse()
-        .expect("Operand is not an integer");
+        .map_err(|_| {
+            PasmError::from(
+                "Operand is not an integer. Did you want to use a label? If so, check the label.",
+            )
+        })?;
 
-    ctx.acc += ctx.mem.get(&x);
+    ctx.acc += ctx.mem.get(&x)?;
 
-    ctx.increment();
+    ctx.increment()
 }
 
-pub fn addm(ctx: &mut Context, op: Op) {
+pub fn addm(ctx: &mut Context, op: Op) -> PasmResult {
     let x: usize = op
-        .expect("No operand")
+        .ok_or_else(|| PasmError::from("No Operand"))?
         .parse()
-        .expect("Operand is not an integer");
+        .map_err(|_| PasmError::from("Operand is not a decimal, hexadecimal, or binary number."))?;
 
     ctx.acc += x;
 
-    ctx.increment();
+    ctx.increment()
 }
 
-pub fn sub(ctx: &mut Context, op: Op) {
+pub fn sub(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op
-        .expect("No operand")
+        .ok_or_else(|| PasmError::from("No Operand"))?
         .parse()
-        .expect("Operand is not an integer");
+        .map_err(|_| {
+            PasmError::from(
+                "Operand is not an integer. Did you want to use a label? If so, check the label.",
+            )
+        })?;
 
-    ctx.acc -= ctx.mem.get(&x);
+    ctx.acc -= ctx.mem.get(&x)?;
 
-    ctx.increment();
+    ctx.increment()
 }
 
-pub fn subm(ctx: &mut Context, op: Op) {
+pub fn subm(ctx: &mut Context, op: Op) -> PasmResult {
     let x: usize = op
-        .expect("No operand")
+        .ok_or_else(|| PasmError::from("No Operand"))?
         .parse()
-        .expect("Operand is not an integer");
+        .map_err(|_| PasmError::from("Operand is not a decimal, hexadecimal, or binary number."))?;
 
     ctx.acc -= x;
 
-    ctx.increment();
+    ctx.increment()
 }
 
-pub fn inc(ctx: &mut Context, op: Op) {
-    let x = op.expect("No operand");
+pub fn inc(ctx: &mut Context, op: Op) -> PasmResult {
+    let x = op.ok_or_else(|| PasmError::from("No Operand"))?;
 
     match x.as_str() {
         "ix" | "IX" => ctx.ix += 1,
         "acc" | "ACC" => ctx.acc += 1,
-        _ => panic!("{} is an invalid register", &x),
+        _ => return Err(PasmError::from("Only 'IX' and 'ACC' are valid registers")),
     }
 
-    ctx.increment();
+    ctx.increment()
 }
 
-pub fn dec(ctx: &mut Context, op: Op) {
-    let x = op.expect("No operand");
+pub fn dec(ctx: &mut Context, op: Op) -> PasmResult {
+    let x = op.ok_or_else(|| PasmError::from("No Operand"))?;
 
     match x.as_str() {
         "ix" | "IX" => ctx.ix -= 1,
         "acc" | "ACC" => ctx.acc -= 1,
-        _ => panic!("{} is an invalid register", &x),
+        _ => return Err(PasmError::from("Only 'IX' and 'ACC' are valid registers")),
     }
 
-    ctx.increment();
+    ctx.increment()
 }

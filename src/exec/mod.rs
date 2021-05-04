@@ -25,30 +25,82 @@ pub mod cmp;
 /// Module for logical bit manipulation
 pub mod bitman;
 
+pub type PasmResult = Result<(), PasmError>;
+
+#[derive(Debug)]
+pub struct PasmError(String);
+
+impl std::fmt::Display for PasmError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for PasmError {}
+
+impl From<&str> for PasmError {
+    fn from(s: &str) -> Self {
+        PasmError(s.into())
+    }
+}
+
+impl From<String> for PasmError {
+    fn from(s: String) -> Self {
+        PasmError(s)
+    }
+}
+
+pub struct Program(Vec<String>);
+
+impl Program {
+    fn handle_err(&self, err: &PasmError, pos: usize) -> ! {
+        let mut out = String::new();
+
+        for (i, s) in self.0.iter().enumerate() {
+            if pos == i {
+                out.push_str(&format!("{}\t{}", i + 1, s));
+                out.push_str(&format!("\t< {}\n", &err.0));
+                out.push('\n');
+                break;
+            }
+        }
+
+        panic!("\n{}", &out);
+    }
+}
+
+impl From<&str> for Program {
+    fn from(s: &str) -> Self {
+        Program(s.lines().map(String::from).collect())
+    }
+}
+
 #[derive(Debug)]
 pub struct Memory<K: std::fmt::Display + Ord, V: Clone>(pub BTreeMap<K, V>);
 
 impl<K: std::fmt::Display + Ord, V: Clone> Memory<K, V> {
-    pub fn get(&self, loc: &K) -> V {
+    pub fn get(&self, loc: &K) -> Result<V, PasmError> {
         let x = self
             .0
             .get(loc)
-            .unwrap_or_else(|| panic!("Memory does not contain address {}", loc));
-        x.clone()
+            .ok_or_else(|| PasmError::from("Memory does not contain this location"))?;
+        Ok(x.clone())
     }
 
-    pub fn write(&mut self, loc: &K, dat: V) {
+    pub fn write(&mut self, loc: &K, dat: V) -> PasmResult {
         let x = self
             .0
             .get_mut(loc)
-            .unwrap_or_else(|| panic!("Memory does not contain address {}", loc));
+            .ok_or_else(|| PasmError::from("Memory does not contain this location"))?;
         *x = dat;
+
+        Ok(())
     }
 }
 
 pub type Op = Option<String>;
 
-pub type Func = fn(&mut Context, Op);
+pub type Func = fn(&mut Context, Op) -> PasmResult;
 
 pub type Cmd = (Func, Op);
 
@@ -62,12 +114,15 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn increment(&mut self) {
-        self.mar += 1
+    pub fn increment(&mut self) -> PasmResult {
+        self.mar += 1;
+
+        Ok(())
     }
 }
 
 pub struct Executor {
+    pub raw: Program,
     pub prog: Memory<usize, Cmd>,
     pub ctx: Context,
 }
@@ -78,8 +133,13 @@ impl Executor {
             if self.ctx.mar == self.prog.0.len() {
                 break;
             }
-            let cir = self.prog.get(&self.ctx.mar);
-            cir.0(&mut self.ctx, cir.1)
+            let cir = self.prog.get(&self.ctx.mar).unwrap_or_else(|_| {
+                self.raw.handle_err(
+                    &PasmError::from("Unable to fetch instruction. Please report this as a bug."),
+                    self.ctx.mar,
+                )
+            });
+            cir.0(&mut self.ctx, cir.1).unwrap_or_else(|e| self.raw.handle_err(&e, self.ctx.mar));
         }
     }
 }
@@ -87,7 +147,7 @@ impl Executor {
 impl Debug for Executor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("Executor {\nprog: {\n").unwrap();
-        for i in self.prog.0.iter() {
+        for i in &self.prog.0 {
             f.write_fmt(format_args!("{:?}\n", (i.0, (i.1).1.as_ref())))
                 .unwrap();
         }
@@ -125,6 +185,7 @@ fn exec() {
     mem.insert(204, 75);
 
     let mut exec = Executor {
+        raw: "None".into(),
         prog: Memory(prog),
         ctx: Context {
             cmpr: false,
