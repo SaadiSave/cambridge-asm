@@ -1,5 +1,5 @@
 name: Cambridge Pseudoassembly Interpreter
-version: "0.2.0"
+version: "0.3.0"
 author: Saadi Save <github.com/SaadiSave>
 about: Run pseudoassembly from Cambridge International syllabus 9618 (2021)
 args:
