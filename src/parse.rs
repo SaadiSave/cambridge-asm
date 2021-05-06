@@ -146,27 +146,8 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
         _ => panic!("Not an instruction"),
     }
 
-    if let Some(mut op) = out.2.clone() {
+    if let Some(op) = out.2.clone() {
         if op.contains('#') {
-            op.remove(0);
-
-            match op.chars().next().unwrap() {
-                'b' | 'B' => {
-                    out.2 = {
-                        op.remove(0);
-                        Some(usize::from_str_radix(&op, 2).unwrap().to_string())
-                    }
-                }
-                'x' | 'X' => {
-                    out.2 = {
-                        op.remove(0);
-                        Some(usize::from_str_radix(&op, 16).unwrap().to_string())
-                    }
-                }
-                '0'..='9' => out.2 = Some(op.parse::<usize>().unwrap().to_string()),
-                _ => panic!("{} is an invalid operand", &op),
-            }
-
             let oper = out.1.as_str();
 
             match oper {
@@ -207,19 +188,19 @@ fn process_insts(insts: &[Inst]) -> Vec<FinInst> {
         }
     }
 
-    let mut int = Vec::new();
+    let mut ir = Vec::new();
 
     for (i, j) in insts.iter().enumerate() {
-        int.push((i, (j.1.clone(), j.2.clone())));
+        ir.push((i, (j.1.clone(), j.2.clone())));
     }
 
     for i in links {
-        (int[i.1].1).1 = Some(i.0.to_string());
+        (ir[i.1].1).1 = Some(i.0.to_string());
     }
 
     let mut out = Vec::new();
 
-    for i in int {
+    for i in ir {
         out.push((i.0, (get_fn(&(i.1).0), (i.1).1)))
     }
 
@@ -274,10 +255,10 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
         }
     }
 
-    let mut int = Vec::new();
+    let mut out = Vec::new();
 
     for (i, j) in mems.iter().enumerate() {
-        int.push((
+        out.push((
             i,
             j.1.clone().unwrap_or_else(|| "0".into()).parse().unwrap(),
         ));
@@ -287,7 +268,36 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
         (prog[i.1].1).1 = Some(i.0.to_string());
     }
 
-    int
+    for i in prog.clone().iter().enumerate() {
+        let mut finop = (i.1.clone().1).1;
+        
+        if let Some(mut op) = (i.1.clone().1).1 {
+            if op.contains('#') {
+                op.remove(0);
+
+                match op.chars().next().unwrap() {
+                    'b' | 'B' => {
+                        finop = {
+                            op.remove(0);
+                            Some(usize::from_str_radix(&op, 2).unwrap().to_string())
+                        }
+                    }
+                    'x' | 'X' => {
+                        finop = {
+                            op.remove(0);
+                            Some(usize::from_str_radix(&op, 16).unwrap().to_string())
+                        }
+                    }
+                    '0'..='9' => finop = Some(op.parse::<usize>().unwrap().to_string()),
+                    _ => panic!("{} is an invalid operand", &op),
+                }
+            }
+        }
+
+        (prog[i.0].1).1 = finop;
+    }
+
+    out
 }
 
 #[test]
