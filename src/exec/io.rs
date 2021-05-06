@@ -4,6 +4,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use super::{Context, Op, PasmError, PasmResult};
+use std::io::Read;
 
 pub fn end(ctx: &mut Context, _: Op) -> PasmResult {
     ctx.increment()
@@ -19,9 +20,7 @@ pub fn out(ctx: &mut Context, _: Op) -> PasmResult {
         )));
     }
 
-    let x = [x as u8];
-
-    let out = std::str::from_utf8(&x).unwrap();
+    let out = x as u8 as char;
 
     println!("{}", &out);
 
@@ -29,24 +28,20 @@ pub fn out(ctx: &mut Context, _: Op) -> PasmResult {
 }
 
 pub fn inp(ctx: &mut Context, _: Op) -> PasmResult {
-    let mut x = String::new();
+    let mut x = [0; 1];
 
     std::io::stdin()
-        .read_line(&mut x)
+        .read_exact(&mut x)
         .expect("Unable to read stdin");
 
-    if x.ends_with('\n') && x.chars().count() == 2 {
-        ctx.acc = x.chars().next().unwrap() as usize;
-    } else {
-        panic!("More than one character typed");
-    }
+    ctx.acc = x[0] as usize;
 
     ctx.increment()
 }
 
 // Custom instruction for debug logging
 pub fn dbg(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op.expect("No operand");
+    let x = op.ok_or_else(|| PasmError::from("No Operand"))?;
 
     let out = match x.as_str() {
         "ix" | "IX" => ctx.ix,
@@ -76,7 +71,8 @@ pub fn rin(ctx: &mut Context, _: Op) -> PasmResult {
         .read_line(&mut x)
         .expect("Unable to read stdin");
 
-    x.pop();
+    x.ends_with('\n').then(|| x.pop());
+    x.ends_with('\r').then(|| x.pop());
 
     ctx.acc = x
         .parse()
