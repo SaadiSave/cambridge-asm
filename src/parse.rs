@@ -25,22 +25,32 @@ pub fn parse(path: &Path) -> Executor {
     let vec = {
         let mut v: Vec<_> = x.split("\n\n").collect();
 
-        if v.len() != 2 {
+        if v.len() < 2 {
             v = x.split("\r\n\r\n").collect();
         }
 
-        if v.len() != 2 {
+        if v.len() < 2 {
             panic!("Unable to parse. Your input may not contain one line between the program and the memory. This was your input:\n{}", &x);
         }
+
+        let v: Vec<_> = v.iter().map(|&s| {
+            let mut x = s.to_owned();
+            if !x.ends_with("\r\n") && cfg!(windows) {
+                x.push_str("\r\n")
+            } else if !x.ends_with('\n') {
+                x.push('\n')
+            }
+            x
+        }).collect();
 
         v
     };
 
-    let raw = Program::from(vec[0]);
+    let raw = Program::from(vec[0].as_str());
 
     let pairs = (
-        PasmParser::parse(Rule::prog, vec[0]).unwrap(),
-        PasmParser::parse(Rule::memory, vec[1]).unwrap(),
+        PasmParser::parse(Rule::prog, &vec[0]).unwrap(),
+        PasmParser::parse(Rule::memory, &vec[1]).unwrap(),
     );
 
     let insts = get_insts(pairs.0);
