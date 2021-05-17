@@ -22,28 +22,28 @@ type Mem = (String, Option<String>);
 pub fn parse(path: &Path) -> Executor {
     let x = std::fs::read_to_string(path).expect("File cannot be read");
 
-    let vec = {
-        let mut v: Vec<_> = x.split("\n\n").collect();
+    let vec: Vec<String> = {
+        let v: Vec<_> = if cfg!(windows) {
+            x.split("\r\n\r\n").collect()
+        } else {
+            x.split("\n\n").collect()
+        };
 
         if v.len() < 2 {
-            v = x.split("\r\n\r\n").collect();
+            panic!("Unable to parse. Your input may not contain one line between the program and the memory.");
         }
 
-        if v.len() < 2 {
-            panic!("Unable to parse. Your input may not contain one line between the program and the memory. This was your input:\n{}", &x);
-        }
-
-        let v: Vec<_> = v.iter().map(|&s| {
-            let mut x = s.to_owned();
-            if !x.ends_with("\r\n") && cfg!(windows) {
-                x.push_str("\r\n")
-            } else if !x.ends_with('\n') {
-                x.push('\n')
-            }
-            x
-        }).collect();
-
-        v
+        v.iter()
+            .map(|&s| {
+                let mut x = s.to_owned();
+                if !x.ends_with("\r\n") && cfg!(windows) {
+                    x.push_str("\r\n")
+                } else if !x.ends_with('\n') {
+                    x.push('\n')
+                }
+                x
+            })
+            .collect()
     };
 
     let raw = Program::from(vec[0].as_str());
@@ -280,7 +280,7 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
 
     for i in prog.clone().iter().enumerate() {
         let mut finop = (i.1.clone().1).1;
-        
+
         if let Some(mut op) = (i.1.clone().1).1 {
             if op.contains('#') {
                 op.remove(0);
