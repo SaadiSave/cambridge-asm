@@ -3,24 +3,23 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-address = { NUMBER+ }
-label = @{ ALPHA+ ~ ":" }
-op = { ALPHA+ }
-immediate = _{ "#" ~ ( "b" | "B" | "x" | "X" )? ~ immedata }
-operand = { immediate | address | ALPHA+ }
+address = { num+ }
+label = @{ alpha+ ~ ":" }
+op = { alpha+ }
+immediate = _{ "#" ~ ( "b" | "B" | "x" | "X" )? ~ idata }
+operand = { immediate | address | alpha+ }
 
-instruction = ${ ( address | label )? ~ WHITESPACE+? ~ op ~ WHITESPACE+? ~ operand? ~ NEWLINE }
-prog = ${ ANYSPACE ~ instruction+ ~ ANYSPACE }
+instruction = ${ ( address | label )? ~ spaces+? ~ op ~ spaces+? ~ operand? ~ spaces*? ~ newline }
+prog = ${ whitespace* ~ instruction+ ~ whitespace* }
 
-memoryentry = ${ ( address | label ) ~ WHITESPACE+? ~ data? ~ NEWLINE }
-memory = ${ ANYSPACE ~ memoryentry+ ~ ANYSPACE }
+memoryentry = ${ ( address | label ) ~ spaces+? ~ data? ~ spaces*? ~ newline }
+memory = ${ whitespace* ~ memoryentry+ ~ whitespace* }
 
-WHITESPACE = _{ " " | "\t" }
-NEWLINE = _{ "\r\n" | "\n" }
-ANYSPACE = _{ (WHITESPACE | NEWLINE)* }
-NUMBER = _{ ('0'..'9') }
-ALPHA = _{ ('a'..'z' | 'A'..'Z' ) }
-ALPHANUM = _{ ALPHA+ | NUMBER+ }
-HEX = _{ ('0'..'9') | ('A'..'F') | ('a'..'f') }
-data = { NUMBER+ }
-immedata = { HEX+ | NUMBER+ }
+spaces = _{ " " | "\t" }
+newline = _{ "\r\n" | "\n" }
+whitespace = _{ (spaces | newline) }
+num = _{ ('0'..'9') }
+alpha = _{ ('a'..'z' | 'A'..'Z' ) }
+hex = _{ ('0'..'9') | ('A'..'F') | ('a'..'f') }
+data = { num+ }
+idata = { hex+ | num+ }
