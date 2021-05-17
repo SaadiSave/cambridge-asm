@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use std::{collections::BTreeMap, fmt::Debug};
+use std::{collections::BTreeMap, fmt::Debug, ops::Deref};
 
 /// # Arithmetic
 /// Module for arithmetic operations
@@ -38,15 +38,9 @@ impl std::fmt::Display for PasmError {
 
 impl std::error::Error for PasmError {}
 
-impl From<&str> for PasmError {
-    fn from(s: &str) -> Self {
-        PasmError(s.into())
-    }
-}
-
-impl From<String> for PasmError {
-    fn from(s: String) -> Self {
-        PasmError(s)
+impl<T: Deref<Target = str> + ToString> From<T> for PasmError {
+    fn from(s: T) -> Self {
+        PasmError(s.to_string())
     }
 }
 
@@ -69,9 +63,9 @@ impl Program {
     }
 }
 
-impl From<&str> for Program {
-    fn from(s: &str) -> Self {
-        Program(s.lines().map(String::from).collect())
+impl<T: Deref<Target = str> + ToString> From<T> for Program {
+    fn from(s: T) -> Self {
+        Program(s.to_string().lines().map(String::from).collect())
     }
 }
 
