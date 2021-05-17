@@ -6,20 +6,23 @@
 address = { num+ }
 label = @{ alpha+ ~ ":" }
 op = { alpha+ }
+data = { num+ }
+idata = { hex+ | num+ }
 immediate = _{ "#" ~ ( "b" | "B" | "x" | "X" )? ~ idata }
 operand = { immediate | address | alpha+ }
 
-instruction = ${ ( address | label )? ~ spaces+? ~ op ~ spaces+? ~ operand? ~ spaces*? ~ newline }
+instruction = ${ ( address | label )? ~ space+? ~ op ~ space+? ~ operand? ~ space+? ~ comment? ~ newline }
 prog = ${ whitespace* ~ instruction+ ~ whitespace* }
 
-memoryentry = ${ ( address | label ) ~ spaces+? ~ data? ~ spaces*? ~ newline }
+memoryentry = ${ ( address | label ) ~ space+? ~ data? ~ space+? ~ comment? ~ newline }
 memory = ${ whitespace* ~ memoryentry+ ~ whitespace* }
 
-spaces = _{ " " | "\t" }
+comment = _{ "//" ~ space* ~ (alphanum+ ~ space*)* ~ space* }
+
+space = _{ " " | "\t" }
 newline = _{ "\r\n" | "\n" }
-whitespace = _{ (spaces | newline) }
+whitespace = _{ (space | newline) }
 num = _{ ('0'..'9') }
 alpha = _{ ('a'..'z' | 'A'..'Z' ) }
+alphanum = _{ alpha | num }
 hex = _{ ('0'..'9') | ('A'..'F') | ('a'..'f') }
-data = { num+ }
-idata = { hex+ | num+ }
