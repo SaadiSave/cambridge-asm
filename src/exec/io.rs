@@ -13,16 +13,16 @@ pub fn end(ctx: &mut Context, _: Op) -> PasmResult {
 pub fn out(ctx: &mut Context, _: Op) -> PasmResult {
     let x = ctx.acc;
 
-    if x > 127 {
+    if x > 255 {
         return Err(PasmError::from(format!(
-            "The value in the ACC, `{}`, is not valid ASCII.",
+            "The value in the ACC, `{}`, is not a valid UTF-8 byte.",
             &x
         )));
     }
 
     let out = x as u8 as char;
 
-    println!("{}", &out);
+    print!("{}", &out);
 
     ctx.increment()
 }

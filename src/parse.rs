@@ -22,6 +22,8 @@ type Mem = (String, Option<String>);
 pub fn parse(path: &Path) -> Executor {
     let x = std::fs::read_to_string(path).expect("File cannot be read");
 
+    info!("File read complete.");
+
     let vec: Vec<String> = {
         let v: Vec<_> = if cfg!(windows) {
             x.split("\r\n\r\n").collect()
@@ -47,18 +49,25 @@ pub fn parse(path: &Path) -> Executor {
     };
 
     let raw = Program::from(vec[0].as_str());
+    debug!("This is your program:\n{:?}", &raw);
 
     let pairs = (
         PasmParser::parse(Rule::prog, &vec[0]).unwrap(),
         PasmParser::parse(Rule::memory, &vec[1]).unwrap(),
     );
 
+    info!("Parsing complete. Creating executor...");
+
+    debug!("Instructions as detected:");
     let insts = get_insts(pairs.0);
 
+    debug!("Processing instructions into ER...");
     let mut insts = process_insts(&insts);
 
+    debug!("Memory as detected:");
     let mems = get_mems(pairs.1);
 
+    debug!("Processing memory into ER...");
     let mems = process_mems(&mems, &mut insts);
 
     let mut mem = BTreeMap::new();
@@ -73,7 +82,7 @@ pub fn parse(path: &Path) -> Executor {
         prog.insert(i.0, ((i.1).0, (i.1).1));
     }
 
-    Executor {
+    let exe = Executor {
         raw,
         prog: Memory(prog),
         ctx: Context {
@@ -83,7 +92,12 @@ pub fn parse(path: &Path) -> Executor {
             ix: 0,
             mem: Memory(mem),
         },
-    }
+    };
+
+    info!("Executor created.");
+    debug!("The executor:\n{:?}", &exe);
+
+    exe
 }
 
 fn get_fn(op: &str) -> Func {
@@ -172,6 +186,7 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
         }
     }
 
+    debug!("{:?}\t{}\t{:?}", &out.0, &out.1, &out.2);
     out
 }
 
@@ -197,6 +212,8 @@ fn process_insts(insts: &[Inst]) -> Vec<FinInst> {
             }
         }
     }
+
+    debug!("Detected links within program:\n{:?}", &links);
 
     let mut ir = Vec::new();
 
@@ -239,6 +256,7 @@ fn get_mem(mem: Pair<Rule>) -> Mem {
         _ => panic!("Not an memory entry"),
     }
 
+    debug!("{}\t{:?}", &out.0, &out.1);
     out
 }
 
@@ -264,6 +282,8 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
             }
         }
     }
+
+    debug!("Detected links between program and memory:\n{:?}", &links);
 
     let mut out = Vec::new();
 
@@ -310,18 +330,26 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
     out
 }
 
+#[cfg(test)]
 #[test]
 fn parse_test() {
-    let t = std::time::Instant::now();
+    let mut t = std::time::Instant::now();
 
     let mut exec = parse(&std::path::PathBuf::from("examples/ex1.pasm"));
     println!("\n{:?}", &t.elapsed());
     exec.exec();
     println!("\n{:?}", &t.elapsed());
 
-    let t = std::time::Instant::now();
+    t = std::time::Instant::now();
 
     let mut exec = parse(&std::path::PathBuf::from("examples/ex2.pasm"));
+    println!("\n{:?}", &t.elapsed());
+    exec.exec();
+    println!("\n{:?}", &t.elapsed());
+
+    t = std::time::Instant::now();
+
+    let mut exec = parse(&std::path::PathBuf::from("examples/ex3.pasm"));
     println!("\n{:?}", &t.elapsed());
     exec.exec();
     println!("\n{:?}", &t.elapsed());

@@ -13,3 +13,5 @@ repository = "https://github.com/SaadiSave/cambridge-asm"
 pest = "2.1"
 pest_derive = "2.1"
 clap = { version = "2.33", features = ["yaml"] }
+log = "0.4"
+simple_logger = "1"

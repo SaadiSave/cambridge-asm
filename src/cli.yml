@@ -11,4 +11,8 @@ args:
         short: v
         multiple: true
         required: false
-        help: Sets the level of verbosity (currenty defunct)
+        help: Sets the logging level
+    - perf:
+        short: t
+        required: false
+        help: Enables output of execution time

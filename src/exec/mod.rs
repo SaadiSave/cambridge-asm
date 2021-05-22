@@ -3,7 +3,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use std::{collections::BTreeMap, fmt::Debug, ops::Deref};
+use std::{
+    collections::BTreeMap,
+    fmt::{Debug, Display},
+    ops::Deref,
+};
 
 /// # Arithmetic
 /// Module for arithmetic operations
@@ -30,7 +34,7 @@ pub type PasmResult = Result<(), PasmError>;
 #[derive(Debug)]
 pub struct PasmError(String);
 
-impl std::fmt::Display for PasmError {
+impl Display for PasmError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
     }
@@ -69,10 +73,22 @@ impl<T: Deref<Target = str> + ToString> From<T> for Program {
     }
 }
 
-#[derive(Debug)]
-pub struct Memory<K: std::fmt::Display + Ord, V: Clone>(pub BTreeMap<K, V>);
+impl Debug for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Program {\n")?;
 
-impl<K: std::fmt::Display + Ord, V: Clone> Memory<K, V> {
+        for inst in &self.0 {
+            f.write_fmt(format_args!("\t{}\n", &inst))?;
+        }
+
+        f.write_str("}\n")
+    }
+}
+
+#[derive(Debug)]
+pub struct Memory<K: Ord, V: Clone>(pub BTreeMap<K, V>);
+
+impl<K: Ord, V: Clone> Memory<K, V> {
     pub fn get(&self, loc: &K) -> Result<V, PasmError> {
         let x = self
             .0
@@ -127,6 +143,9 @@ impl Executor {
             if self.ctx.mar == self.prog.0.len() {
                 break;
             }
+
+            trace!("Executing line {}", &self.ctx.mar + 1);
+
             let cir = self.prog.get(&self.ctx.mar).unwrap_or_else(|_| {
                 self.raw.handle_err(
                     &PasmError::from("Unable to fetch instruction. Please report this as a bug."),
@@ -140,16 +159,18 @@ impl Executor {
 
 impl Debug for Executor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Executor {\nprog: {\n").unwrap();
+        f.write_str("Executor {\n")?;
+
         for i in &self.prog.0 {
-            f.write_fmt(format_args!("{:?}\n", (i.0, (i.1).1.as_ref())))
-                .unwrap();
+            f.write_fmt(format_args!("\t{:?}\n", (i.0, (i.1).1.as_ref())))?;
         }
-        f.write_str("}\n").unwrap();
+
+        f.write_str("}\n")?;
         f.write_fmt(format_args!("{:?}", self.ctx))
     }
 }
 
+#[cfg(test)]
 #[test]
 fn exec() {
     let mut prog: BTreeMap<usize, Cmd> = BTreeMap::new();

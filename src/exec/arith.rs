@@ -15,7 +15,14 @@ pub fn add(ctx: &mut Context, op: Op) -> PasmResult {
             )
         })?;
 
-    ctx.acc += ctx.mem.get(&x)?;
+    let y = ctx.mem.get(&x)?;
+
+    if let Some(res) = ctx.acc.checked_add(y) {
+        ctx.acc = res
+    } else {
+        warn!("Addition overflow detected at line {}", ctx.mar + 1);
+        ctx.acc += y;
+    }
 
     ctx.increment()
 }
@@ -26,7 +33,12 @@ pub fn addm(ctx: &mut Context, op: Op) -> PasmResult {
         .parse()
         .map_err(|_| PasmError::from("Operand is not a decimal, hexadecimal, or binary number."))?;
 
-    ctx.acc += x;
+    if let Some(res) = ctx.acc.checked_add(x) {
+        ctx.acc = res
+    } else {
+        warn!("Addition overflow detected at line {}", ctx.mar + 1);
+        ctx.acc += x;
+    }
 
     ctx.increment()
 }
@@ -41,7 +53,14 @@ pub fn sub(ctx: &mut Context, op: Op) -> PasmResult {
             )
         })?;
 
-    ctx.acc -= ctx.mem.get(&x)?;
+    let y = ctx.mem.get(&x)?;
+
+    if let Some(res) = ctx.acc.checked_sub(y) {
+        ctx.acc = res
+    } else {
+        warn!("Subtraction overflow detected at line {}", ctx.mar + 1);
+        ctx.acc -= y;
+    }
 
     ctx.increment()
 }
@@ -52,7 +71,12 @@ pub fn subm(ctx: &mut Context, op: Op) -> PasmResult {
         .parse()
         .map_err(|_| PasmError::from("Operand is not a decimal, hexadecimal, or binary number."))?;
 
-    ctx.acc -= x;
+    if let Some(res) = ctx.acc.checked_sub(x) {
+        ctx.acc = res
+    } else {
+        warn!("Subtraction overflow detected at line {}", ctx.mar + 1);
+        ctx.acc -= x;
+    }
 
     ctx.increment()
 }
