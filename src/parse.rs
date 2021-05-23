@@ -24,12 +24,12 @@ pub fn parse(path: &Path) -> Executor {
 
     info!("File read complete.");
 
-    let vec: Vec<String> = {
-        let v: Vec<_> = if cfg!(windows) {
-            x.split("\r\n\r\n").collect()
-        } else {
-            x.split("\n\n").collect()
-        };
+    let line_ending = {
+        x.contains("\r\n").then(|| "\r\n").unwrap_or("\n")
+    };
+
+    let vec: Vec<_> = {
+        let v: Vec<_> = x.split(&format!("{}{}", line_ending, line_ending)).collect();
 
         if v.len() < 2 {
             panic!("Unable to parse. Your input may not contain one line between the program and the memory.");
@@ -38,11 +38,7 @@ pub fn parse(path: &Path) -> Executor {
         v.iter()
             .map(|&s| {
                 let mut x = s.to_owned();
-                if !x.ends_with("\r\n") && cfg!(windows) {
-                    x.push_str("\r\n")
-                } else if !x.ends_with('\n') {
-                    x.push('\n')
-                }
+                (!x.ends_with(line_ending)).then(|| x.push_str(line_ending));
                 x
             })
             .collect()
