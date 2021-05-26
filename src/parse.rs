@@ -224,7 +224,7 @@ fn process_insts(insts: &[Inst]) -> Vec<FinInst> {
     let mut out = Vec::new();
 
     for i in ir {
-        out.push((i.0, (get_fn(&(i.1).0), (i.1).1)))
+        out.push((i.0, (get_fn(&(i.1).0.to_uppercase()), (i.1).1)))
     }
 
     out
