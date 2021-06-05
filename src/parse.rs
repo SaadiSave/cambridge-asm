@@ -97,6 +97,52 @@ pub fn parse(path: &Path) -> Executor {
     exe
 }
 
+// Strictly follow cambridge spec
+#[cfg(feature = "cambridge")]
+fn get_fn(op: &str) -> Func {
+    use exec::{arith, bitman, cmp, io, mov};
+    match op {
+        "LDM" => mov::ldm,
+        "LDD" => mov::ldd,
+        "LDI" => mov::ldi,
+        "LDX" => mov::ldx,
+        "LDR" => mov::ldr,
+        "MOV" => mov::mov,
+        "STO" => mov::sto,
+
+        "CMP" => cmp::cmp,
+        "CMPM" => cmp::cmpm,
+        "JPE" => cmp::jpe,
+        "JPN" => cmp::jpn,
+        "JMP" => cmp::jmp,
+        "CMI" => cmp::cmi,
+
+        "IN" => io::inp,
+        "OUT" => io::out,
+        "END" => io::end,
+
+        "INC" => arith::inc,
+        "DEC" => arith::dec,
+        "ADD" => arith::add,
+        "ADDM" => arith::addm,
+        "SUB" => arith::sub,
+        "SUBM" => arith::subm,
+
+        "AND" => bitman::and,
+        "ANDM" => bitman::andm,
+        "OR" => bitman::or,
+        "ORM" => bitman::orm,
+        "XOR" => bitman::xor,
+        "XORM" => bitman::xorm,
+        "LSL" => bitman::lsl,
+        "LSR" => bitman::lsr,
+
+        _ => panic!("{} is not an operation", &op),
+    }
+}
+
+// Main version
+#[cfg(not(feature = "cambridge"))]
 fn get_fn(op: &str) -> Func {
     use exec::{arith, bitman, cmp, io, mov};
     match op {
@@ -328,6 +374,7 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
 }
 
 #[cfg(test)]
+#[cfg(not(feature = "cambridge"))]
 #[test]
 fn parse_test() {
     let mut t = std::time::Instant::now();

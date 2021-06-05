@@ -40,6 +40,7 @@ pub fn inp(ctx: &mut Context, _: Op) -> PasmResult {
 }
 
 // Custom instruction for debug logging
+#[cfg(not(feature = "cambridge"))]
 pub fn dbg(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op.ok_or_else(|| PasmError::from("No Operand"))?;
 
@@ -64,6 +65,7 @@ pub fn dbg(ctx: &mut Context, op: Op) -> PasmResult {
 }
 
 // Raw input - directly input integers
+#[cfg(not(feature = "cambridge"))]
 pub fn rin(ctx: &mut Context, _: Op) -> PasmResult {
     let mut x = String::new();
 

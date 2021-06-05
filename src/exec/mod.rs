@@ -201,7 +201,7 @@ fn exec() {
     prog.insert(9, (cmp::cmp, Some("204".into())));
     prog.insert(10, (cmp::jpn, Some("3".into())));
     prog.insert(11, (mov::ldd, Some("202".into())));
-    prog.insert(12, (io::dbg, Some("ACC".into())));
+    prog.insert(12, (io::out, Some("ACC".into())));
     prog.insert(13, (io::end, None));
 
     // Memory partition
