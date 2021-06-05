@@ -24,12 +24,12 @@ pub fn parse(path: &Path) -> Executor {
 
     info!("File read complete.");
 
-    let line_ending = {
-        x.contains("\r\n").then(|| "\r\n").unwrap_or("\n")
-    };
+    let line_ending = { x.contains("\r\n").then(|| "\r\n").unwrap_or("\n") };
 
     let vec: Vec<_> = {
-        let v: Vec<_> = x.split(&format!("{}{}", line_ending, line_ending)).collect();
+        let v: Vec<_> = x
+            .split(&format!("{}{}", line_ending, line_ending))
+            .collect();
 
         if v.len() < 2 {
             panic!("Unable to parse. Your input may not contain one line between the program and the memory.");
@@ -52,19 +52,19 @@ pub fn parse(path: &Path) -> Executor {
         PasmParser::parse(Rule::memory, &vec[1]).unwrap(),
     );
 
-    info!("Parsing complete. Creating executor...");
-
     debug!("Instructions as detected:");
     let insts = get_insts(pairs.0);
 
-    debug!("Processing instructions into ER...");
+    debug!("Processing instructions into IR...");
     let mut insts = process_insts(&insts);
 
     debug!("Memory as detected:");
     let mems = get_mems(pairs.1);
 
-    debug!("Processing memory into ER...");
+    debug!("Processing memory into IR...");
     let mems = process_mems(&mems, &mut insts);
+
+    info!("Parsing complete. Creating executor...");
 
     let mut mem = BTreeMap::new();
 
@@ -90,8 +90,9 @@ pub fn parse(path: &Path) -> Executor {
         },
     };
 
-    info!("Executor created.");
+    info!("Executor created.\n");
     debug!("The executor:\n{:?}", &exe);
+    debug!("The intial context:\n{:?}\n", &exe.ctx);
 
     exe
 }
@@ -209,7 +210,7 @@ fn process_insts(insts: &[Inst]) -> Vec<FinInst> {
         }
     }
 
-    debug!("Detected links within program:\n{:?}", &links);
+    debug!("Detected links within program:\n{:?}\n", &links);
 
     let mut ir = Vec::new();
 
@@ -279,7 +280,7 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
         }
     }
 
-    debug!("Detected links between program and memory:\n{:?}", &links);
+    debug!("Detected links between program and memory:\n{:?}\n", &links);
 
     let mut out = Vec::new();
 

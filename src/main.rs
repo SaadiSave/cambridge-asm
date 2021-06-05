@@ -19,6 +19,9 @@ fn main() {
 
     let verbosity = opts.occurrences_of("verbose");
 
+    #[cfg(not(debug_assertions))]
+    std::panic::set_hook(Box::new(handle_panic));
+
     SimpleLogger::new()
         .with_level(get_log_level(verbosity))
         .init()
@@ -31,14 +34,17 @@ fn main() {
     let mut exec = parse::parse(&path);
 
     x.is_some().then(|| {
-        println!("Parse time: {:?}", x.unwrap().elapsed());
+        println!(
+            "Total parse time (incl. executor creation): {:?}\nExecution starts here:",
+            x.unwrap().elapsed()
+        );
         x = Some(std::time::Instant::now())
     });
 
     exec.exec();
 
     x.is_some()
-        .then(|| println!("\nExecution time: {:?}", x.unwrap().elapsed()));
+        .then(|| println!("Execution done.\nExecution time: {:?}", x.unwrap().elapsed()));
 }
 
 fn get_log_level(v: u64) -> LevelFilter {
@@ -48,5 +54,18 @@ fn get_log_level(v: u64) -> LevelFilter {
         2 => LevelFilter::Info,
         3 => LevelFilter::Debug,
         _ => LevelFilter::Trace,
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn handle_panic(info: &std::panic::PanicInfo) {
+    if let Some(l) = info.location() {
+        println!("Panic occured at {}:{} - \"", l.file(), l.line())
+    } else {
+        println!("Panic occured, unable to determine location - \"")
+    }
+
+    if let Some(msg) = info.payload().downcast_ref::<String>() {
+        println!("{}\n\"\nTo debug, try increasing the verbosity by passing -v flags if the error message is unclear.\nOpen an issue on github if the panic appears to be an internal error.", msg)
     }
 }

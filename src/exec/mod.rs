@@ -53,17 +53,19 @@ pub struct Program(Vec<String>);
 impl Program {
     fn handle_err(&self, err: &PasmError, pos: usize) -> ! {
         let mut out = String::new();
+        out.push_str("Error {\n");
 
         for (i, s) in self.0.iter().enumerate() {
             if pos == i {
-                out.push_str(&format!("{}\t{}", i + 1, s));
+                out.push_str(&format!("\n    {}\t{}", i + 1, s));
                 out.push_str(&format!("\t< {}\n", &err.0));
                 out.push('\n');
                 break;
             }
         }
-
-        panic!("\n{}", &out);
+        
+        out.push('}');
+        panic!("{}", &out);
     }
 }
 
@@ -114,7 +116,6 @@ pub type Func = fn(&mut Context, Op) -> PasmResult;
 
 pub type Cmd = (Func, Op);
 
-#[derive(Debug)]
 pub struct Context {
     pub cmpr: bool,
     pub mar: usize,
@@ -128,6 +129,18 @@ impl Context {
         self.mar += 1;
 
         Ok(())
+    }
+}
+
+impl Debug for Context {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Context {\n")?;
+        f.write_fmt(format_args!("    mar: {}\n", &self.mar))?;
+        f.write_fmt(format_args!("    acc: {}\n", &self.acc))?;
+        f.write_fmt(format_args!("    ix: {}\n", &self.ix))?;
+        f.write_fmt(format_args!("    cmpr: {}\n", &self.cmpr))?;
+        f.write_fmt(format_args!("    mem: {:?}\n", &self.mem))?;
+        f.write_str("}\n")
     }
 }
 
@@ -162,11 +175,10 @@ impl Debug for Executor {
         f.write_str("Executor {\n")?;
 
         for i in &self.prog.0 {
-            f.write_fmt(format_args!("\t{:?}\n", (i.0, (i.1).1.as_ref())))?;
+            f.write_fmt(format_args!("    {:?}\n", (i.0, (i.1).1.as_ref())))?;
         }
 
-        f.write_str("}\n")?;
-        f.write_fmt(format_args!("{:?}", self.ctx))
+        f.write_str("}\n")
     }
 }
 
