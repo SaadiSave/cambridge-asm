@@ -53,12 +53,16 @@ pub fn parse(path: &Path) -> Executor {
     );
 
     debug!("Instructions as detected:");
+    debug!("Addr\tOpcode\tOp");
+    debug!("-------\t-------\t-------");
     let insts = get_insts(pairs.0);
 
     debug!("Processing instructions into IR...");
     let mut insts = process_insts(&insts);
 
     debug!("Memory as detected:");
+    debug!("Addr\tData");
+    debug!("-------\t-------");
     let mems = get_mems(pairs.1);
 
     debug!("Processing memory into IR...");
@@ -229,7 +233,12 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
         }
     }
 
-    debug!("{:?}\t{}\t{:?}", &out.0, &out.1, &out.2);
+    debug!(
+        "{}\t{}\t{}",
+        &out.0.clone().unwrap_or_else(|| String::from("None")),
+        &out.1,
+        &out.2.clone().unwrap_or_else(|| String::from("None"))
+    );
     out
 }
 
@@ -299,7 +308,11 @@ fn get_mem(mem: Pair<Rule>) -> Mem {
         _ => panic!("Not an memory entry"),
     }
 
-    debug!("{}\t{:?}", &out.0, &out.1);
+    debug!(
+        "{}\t{}",
+        &out.0,
+        &out.1.clone().unwrap_or_else(|| String::from("None"))
+    );
     out
 }
 
