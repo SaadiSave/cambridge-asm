@@ -7,8 +7,8 @@ STO COUNT
 CMP NUMTWO
 JPN LOOP
 LDD ANSWER
-DBG ACC
-END
+DBG ACC // Output is 15625
+END // This program multiplies two numbers
 
 NUMONE: 625
 NUMTWO: 25

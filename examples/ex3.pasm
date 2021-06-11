@@ -8,7 +8,7 @@ CMP #5
 JPN LOOP
 LDM #10 // Code for newline
 OUT // Output newline
-END
+END // This program prints HELLO
 
 
 CNT: 0
