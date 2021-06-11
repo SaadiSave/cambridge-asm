@@ -63,7 +63,7 @@ impl Program {
                 break;
             }
         }
-        
+
         out.push('}');
         panic!("{}", &out);
     }
@@ -148,6 +148,7 @@ pub struct Executor {
     pub raw: Program,
     pub prog: Memory<usize, Cmd>,
     pub ctx: Context,
+    pub count: u64,
 }
 
 impl Executor {
@@ -157,7 +158,10 @@ impl Executor {
                 break;
             }
 
-            trace!("Executing line {}", &self.ctx.mar + 1);
+            trace!("Executing line {}", {
+                self.count += 1;
+                &self.ctx.mar + 1
+            });
 
             let cir = self.prog.get(&self.ctx.mar).unwrap_or_else(|_| {
                 self.raw.handle_err(
@@ -167,6 +171,8 @@ impl Executor {
             });
             cir.0(&mut self.ctx, cir.1).unwrap_or_else(|e| self.raw.handle_err(&e, self.ctx.mar));
         }
+
+        trace!("Total instructions executed: {}", self.count)
     }
 }
 
@@ -221,6 +227,7 @@ fn exec() {
             ix: 0,
             mem: Memory(mem),
         },
+        count: 0,
     };
 
     let t = std::time::Instant::now();

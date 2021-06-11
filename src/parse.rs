@@ -92,6 +92,7 @@ pub fn parse(path: &Path) -> Executor {
             ix: 0,
             mem: Memory(mem),
         },
+        count: 0,
     };
 
     info!("Executor created.\n");
