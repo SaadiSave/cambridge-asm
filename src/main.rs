@@ -7,8 +7,6 @@
 
 use cambridge_asm::parse;
 use clap::{load_yaml, App};
-use log::LevelFilter;
-use simple_logger::SimpleLogger;
 use std::path::PathBuf;
 
 fn main() {
@@ -19,13 +17,15 @@ fn main() {
 
     let verbosity = opts.occurrences_of("verbose");
 
+    set_log_level(verbosity);
+
     #[cfg(not(debug_assertions))]
     std::panic::set_hook(Box::new(handle_panic));
 
-    SimpleLogger::new()
-        .with_level(get_log_level(verbosity))
-        .init()
-        .unwrap();
+    env_logger::builder()
+        .format_timestamp(None)
+        .format_indent(None)
+        .init();
 
     let mut x = opts.is_present("perf").then(std::time::Instant::now);
 
@@ -43,17 +43,22 @@ fn main() {
 
     exec.exec();
 
-    x.is_some()
-        .then(|| println!("Execution done.\nExecution time: {:?}", x.unwrap().elapsed()));
+    x.is_some().then(|| {
+        println!(
+            "Execution done.\nExecution time: {:?}",
+            x.unwrap().elapsed()
+        )
+    });
 }
 
-fn get_log_level(v: u64) -> LevelFilter {
+fn set_log_level(v: u64) {
+    use std::env;
     match v {
-        0 => LevelFilter::Off,
-        1 => LevelFilter::Warn,
-        2 => LevelFilter::Info,
-        3 => LevelFilter::Debug,
-        _ => LevelFilter::Trace,
+        0 => env::set_var("RUST_LOG", "off"),
+        1 => env::set_var("RUST_LOG", "warn"),
+        2 => env::set_var("RUST_LOG", "info"),
+        3 => env::set_var("RUST_LOG", "debug"),
+        _ => env::set_var("RUST_LOG", "trace"),
     }
 }
 
