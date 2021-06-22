@@ -158,10 +158,9 @@ impl Executor {
                 break;
             }
 
-            trace!("Executing line {}", {
-                self.count += 1;
-                &self.ctx.mar + 1
-            });
+            self.count += 1;
+
+            trace!("Executing line {}", self.ctx.mar + 1);
 
             let cir = self.prog.get(&self.ctx.mar).unwrap_or_else(|_| {
                 self.raw.handle_err(
@@ -172,7 +171,7 @@ impl Executor {
             cir.0(&mut self.ctx, cir.1).unwrap_or_else(|e| self.raw.handle_err(&e, self.ctx.mar));
         }
 
-        trace!("Total instructions executed: {}", self.count)
+        debug!("Total instructions executed: {}", self.count)
     }
 }
 
