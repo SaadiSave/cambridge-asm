@@ -8,6 +8,7 @@ use pest::{
     iterators::{Pair, Pairs},
     Parser,
 };
+use pest_derive::Parser;
 use std::{collections::BTreeMap, path::Path};
 
 #[derive(Parser)]
