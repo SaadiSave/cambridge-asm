@@ -25,6 +25,7 @@ fn main() {
     env_logger::builder()
         .format_timestamp(None)
         .format_indent(None)
+        .format_module_path(false)
         .init();
 
     let mut x = opts.is_present("perf").then(std::time::Instant::now);
@@ -35,7 +36,7 @@ fn main() {
 
     x.is_some().then(|| {
         println!(
-            "Total parse time (incl. executor creation): {:?}\nExecution starts here:",
+            "Total parse time: {:?}\nExecution starts on next line",
             x.unwrap().elapsed()
         );
         x = Some(std::time::Instant::now())
@@ -45,7 +46,7 @@ fn main() {
 
     x.is_some().then(|| {
         println!(
-            "Execution done.\nExecution time: {:?}",
+            "Execution done\nExecution time: {:?}",
             x.unwrap().elapsed()
         )
     });
