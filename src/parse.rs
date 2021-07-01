@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::exec::{self, Cmd, Context, Executor, Func, Memory, Program};
+use crate::exec::{self, Cmd, Context, Executor, Func, Memory, Source};
 use pest::{
     iterators::{Pair, Pairs},
     Parser,
@@ -20,7 +20,7 @@ type FinInst = (usize, Cmd);
 type Mem = (String, Option<String>);
 
 #[must_use]
-pub fn parse(path: &Path) -> Executor {
+pub fn parse(path: &Path, func: fn(&str) -> Result<Func, String>) -> Executor {
     let x = std::fs::read_to_string(path).expect("File cannot be read");
 
     info!("File read complete.");
@@ -45,7 +45,7 @@ pub fn parse(path: &Path) -> Executor {
             .collect()
     };
 
-    let raw = Program::from(vec[0].as_str());
+    let raw = Source::from(vec[0].as_str());
     debug!("This is your program:\n{:?}", &raw);
 
     let pairs = (
@@ -59,7 +59,7 @@ pub fn parse(path: &Path) -> Executor {
     let insts = get_insts(pairs.0);
 
     debug!("Processing instructions into IR...");
-    let mut insts = process_insts(&insts);
+    let mut insts = process_insts(&insts, func);
 
     debug!("Memory as detected:");
     debug!("Addr\tData");
@@ -84,7 +84,7 @@ pub fn parse(path: &Path) -> Executor {
     }
 
     let exe = Executor {
-        raw,
+        source: raw,
         prog: Memory(prog),
         ctx: Context {
             cmpr: false,
@@ -92,11 +92,12 @@ pub fn parse(path: &Path) -> Executor {
             acc: 0,
             ix: 0,
             mem: Memory(mem),
+            add_regs: vec![],
         },
         count: 0,
     };
 
-    info!("Executor created.\n");
+    info!("Executor created.");
     debug!("The executor:\n{:?}", &exe);
     debug!("The intial context:\n{:?}\n", &exe.ctx);
 
@@ -105,9 +106,10 @@ pub fn parse(path: &Path) -> Executor {
 
 // Strictly follow cambridge spec
 #[cfg(feature = "cambridge")]
-fn get_fn(op: &str) -> Func {
+#[must_use]
+pub fn get_fn(op: &str) -> Result<Func, String> {
     use exec::{arith, bitman, cmp, io, mov};
-    match op {
+    Ok(match op {
         "LDM" => mov::ldm,
         "LDD" => mov::ldd,
         "LDI" => mov::ldi,
@@ -143,15 +145,15 @@ fn get_fn(op: &str) -> Func {
         "LSL" => bitman::lsl,
         "LSR" => bitman::lsr,
 
-        _ => panic!("{} is not an operation", &op),
-    }
+        _ => return Err(format!("{} is not an operation", &op)),
+    })
 }
 
 // Main version
 #[cfg(not(feature = "cambridge"))]
-fn get_fn(op: &str) -> Func {
+pub fn get_fn(op: &str) -> Result<Func, String> {
     use exec::{arith, bitman, cmp, io, mov};
-    match op {
+    Ok(match op {
         "LDM" => mov::ldm,
         "LDD" => mov::ldd,
         "LDI" => mov::ldi,
@@ -189,8 +191,8 @@ fn get_fn(op: &str) -> Func {
         "LSL" => bitman::lsl,
         "LSR" => bitman::lsr,
 
-        _ => panic!("{} is not an operation", &op),
-    }
+        _ => return Err(format!("{} is not an operation", &op)),
+    })
 }
 
 fn get_inst(inst: Pair<Rule>) -> Inst {
@@ -256,7 +258,7 @@ fn get_insts(inst: Pairs<Rule>) -> Vec<Inst> {
     out
 }
 
-fn process_insts(insts: &[Inst]) -> Vec<FinInst> {
+fn process_insts(insts: &[Inst], func: fn(&str) -> Result<Func, String>) -> Vec<FinInst> {
     let mut links = Vec::new();
 
     for (i, (addr, _, _)) in insts.iter().enumerate() {
@@ -282,7 +284,13 @@ fn process_insts(insts: &[Inst]) -> Vec<FinInst> {
     let mut out = Vec::new();
 
     for i in ir {
-        out.push((i.0, (get_fn(&(i.1).0.to_uppercase()), (i.1).1)))
+        out.push((
+            i.0,
+            (
+                func(&(i.1).0.to_uppercase()).unwrap_or_else(|s| panic!("{}", s)),
+                (i.1).1,
+            ),
+        ))
     }
 
     out
@@ -394,21 +402,21 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
 fn parse_test() {
     let mut t = std::time::Instant::now();
 
-    let mut exec = parse(&std::path::PathBuf::from("examples/ex1.pasm"));
+    let mut exec = parse(&std::path::PathBuf::from("examples/ex1.pasm"), get_fn);
     println!("\n{:?}", &t.elapsed());
     exec.exec();
     println!("\n{:?}", &t.elapsed());
 
     t = std::time::Instant::now();
 
-    let mut exec = parse(&std::path::PathBuf::from("examples/ex2.pasm"));
+    let mut exec = parse(&std::path::PathBuf::from("examples/ex2.pasm"), get_fn);
     println!("\n{:?}", &t.elapsed());
     exec.exec();
     println!("\n{:?}", &t.elapsed());
 
     t = std::time::Instant::now();
 
-    let mut exec = parse(&std::path::PathBuf::from("examples/ex3.pasm"));
+    let mut exec = parse(&std::path::PathBuf::from("examples/ex3.pasm"), get_fn);
     println!("\n{:?}", &t.elapsed());
     exec.exec();
     println!("\n{:?}", &t.elapsed());

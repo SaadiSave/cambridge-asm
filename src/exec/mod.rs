@@ -32,6 +32,7 @@ pub mod bitman;
 pub type PasmResult = Result<(), PasmError>;
 
 #[derive(Debug)]
+#[repr(transparent)]
 pub struct PasmError(String);
 
 impl Display for PasmError {
@@ -42,15 +43,16 @@ impl Display for PasmError {
 
 impl std::error::Error for PasmError {}
 
-impl<T: Deref<Target = str> + ToString> From<T> for PasmError {
+impl<T: Deref<Target = str>> From<T> for PasmError {
     fn from(s: T) -> Self {
         PasmError(s.to_string())
     }
 }
 
-pub struct Program(Vec<String>);
+#[repr(transparent)]
+pub struct Source(Vec<String>);
 
-impl Program {
+impl Source {
     fn handle_err(&self, err: &PasmError, pos: usize) -> ! {
         let mut out = String::new();
         out.push_str("Error {\n");
@@ -69,13 +71,13 @@ impl Program {
     }
 }
 
-impl<T: Deref<Target = str> + ToString> From<T> for Program {
+impl<T: Deref<Target = str>> From<T> for Source {
     fn from(s: T) -> Self {
-        Program(s.to_string().lines().map(String::from).collect())
+        Source(s.to_string().lines().map(String::from).collect())
     }
 }
 
-impl Debug for Program {
+impl Debug for Source {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("Program {\n")?;
 
@@ -88,6 +90,7 @@ impl Debug for Program {
 }
 
 #[derive(Debug)]
+#[repr(transparent)]
 pub struct Memory<K: Ord, V: Clone>(pub BTreeMap<K, V>);
 
 impl<K: Ord, V: Clone> Memory<K, V> {
@@ -122,6 +125,7 @@ pub struct Context {
     pub acc: usize,
     pub ix: usize,
     pub mem: Memory<usize, usize>,
+    pub add_regs: Vec<usize>,
 }
 
 impl Context {
@@ -145,7 +149,7 @@ impl Debug for Context {
 }
 
 pub struct Executor {
-    pub raw: Program,
+    pub source: Source,
     pub prog: Memory<usize, Cmd>,
     pub ctx: Context,
     pub count: u64,
@@ -163,12 +167,12 @@ impl Executor {
             trace!("Executing line {}", self.ctx.mar + 1);
 
             let cir = self.prog.get(&self.ctx.mar).unwrap_or_else(|_| {
-                self.raw.handle_err(
+                self.source.handle_err(
                     &PasmError::from("Unable to fetch instruction. Please report this as a bug."),
                     self.ctx.mar,
                 )
             });
-            cir.0(&mut self.ctx, cir.1).unwrap_or_else(|e| self.raw.handle_err(&e, self.ctx.mar));
+            cir.0(&mut self.ctx, cir.1).unwrap_or_else(|e| self.source.handle_err(&e, self.ctx.mar));
         }
 
         debug!("Total instructions executed: {}", self.count)
@@ -217,7 +221,7 @@ fn exec() {
     mem.insert(204, 75);
 
     let mut exec = Executor {
-        raw: "None".into(),
+        source: "None".into(),
         prog: Memory(prog),
         ctx: Context {
             cmpr: false,
@@ -225,6 +229,7 @@ fn exec() {
             acc: 0,
             ix: 0,
             mem: Memory(mem),
+            add_regs: vec![],
         },
         count: 0,
     };
