@@ -3,12 +3,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::exec::{self, Cmd, Context, Executor, Func, Memory, Source};
+use crate::exec::{Cmd, Context, Executor, Func, Memory, Source};
 use pest::{
     iterators::{Pair, Pairs},
     Parser,
 };
 use pest_derive::Parser;
+use std::ops::Deref;
 use std::{collections::BTreeMap, path::Path};
 
 #[derive(Parser)]
@@ -18,17 +19,14 @@ struct PasmParser;
 type Inst = (Option<String>, String, Option<String>);
 type FinInst = (usize, Cmd);
 type Mem = (String, Option<String>);
+type InstSet = fn(&str) -> Result<Func, String>;
 
 #[must_use]
-pub fn parse(path: &Path, func: fn(&str) -> Result<Func, String>) -> Executor {
-    let x = std::fs::read_to_string(path).expect("File cannot be read");
-
-    info!("File read complete.");
-
-    let line_ending = { x.contains("\r\n").then(|| "\r\n").unwrap_or("\n") };
+pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
+    let line_ending = { prog.contains("\r\n").then(|| "\r\n").unwrap_or("\n") };
 
     let vec: Vec<_> = {
-        let v: Vec<_> = x
+        let v: Vec<_> = prog
             .split(&format!("{}{}", line_ending, line_ending))
             .collect();
 
@@ -59,7 +57,7 @@ pub fn parse(path: &Path, func: fn(&str) -> Result<Func, String>) -> Executor {
     let insts = get_insts(pairs.0);
 
     debug!("Processing instructions into IR...");
-    let mut insts = process_insts(&insts, func);
+    let mut insts = process_insts(&insts, inst_set);
 
     debug!("Memory as detected:");
     debug!("Addr\tData");
@@ -83,77 +81,113 @@ pub fn parse(path: &Path, func: fn(&str) -> Result<Func, String>) -> Executor {
         prog.insert(i.0, ((i.1).0, (i.1).1));
     }
 
-    let exe = Executor {
-        source: raw,
-        prog: Memory(prog),
-        ctx: Context {
-            cmpr: false,
-            mar: 0,
-            acc: 0,
-            ix: 0,
-            mem: Memory(mem),
-            add_regs: vec![],
-        },
-        count: 0,
-    };
+    let exe = Executor::new(raw, Memory::new(prog), Context::new(Memory::new(mem), None));
 
     info!("Executor created.");
-    debug!("The executor:\n{:?}", &exe);
-    debug!("The intial context:\n{:?}\n", &exe.ctx);
+    debug!("Executor {:#?}\n", &exe);
+    debug!("The initial context:\n{:#?}\n", &exe.ctx);
 
     exe
 }
 
-// Strictly follow cambridge spec
-#[cfg(feature = "cambridge")]
 #[must_use]
-pub fn get_fn(op: &str) -> Result<Func, String> {
-    use exec::{arith, bitman, cmp, io, mov};
-    Ok(match op {
-        "LDM" => mov::ldm,
-        "LDD" => mov::ldd,
-        "LDI" => mov::ldi,
-        "LDX" => mov::ldx,
-        "LDR" => mov::ldr,
-        "MOV" => mov::mov,
-        "STO" => mov::sto,
+pub fn from_file(path: &Path, inst_set: InstSet) -> Executor {
+    let prog = std::fs::read_to_string(path).expect("Cannot read file");
 
-        "CMP" => cmp::cmp,
-        "CMPM" => cmp::cmpm,
-        "JPE" => cmp::jpe,
-        "JPN" => cmp::jpn,
-        "JMP" => cmp::jmp,
-        "CMI" => cmp::cmi,
+    info!("File read complete.");
 
-        "IN" => io::inp,
-        "OUT" => io::out,
-        "END" => io::end,
-
-        "INC" => arith::inc,
-        "DEC" => arith::dec,
-        "ADD" => arith::add,
-        "ADDM" => arith::addm,
-        "SUB" => arith::sub,
-        "SUBM" => arith::subm,
-
-        "AND" => bitman::and,
-        "ANDM" => bitman::andm,
-        "OR" => bitman::or,
-        "ORM" => bitman::orm,
-        "XOR" => bitman::xor,
-        "XORM" => bitman::xorm,
-        "LSL" => bitman::lsl,
-        "LSR" => bitman::lsr,
-
-        _ => return Err(format!("{} is not an operation", &op)),
-    })
+    parse(prog, inst_set)
 }
 
-// Main version
-#[cfg(not(feature = "cambridge"))]
-pub fn get_fn(op: &str) -> Result<Func, String> {
-    use exec::{arith, bitman, cmp, io, mov};
-    Ok(match op {
+/// Macro to generate an instruction set
+#[macro_export]
+macro_rules! inst_set {
+    ($(#[$outer:meta])* $vis:vis $name:ident { $( $inst:pat => $func:expr ),+ $(,)? }) => {
+        $(#[$outer])*
+        $vis fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+            Ok(match op {
+                $( $inst => $func,)+
+                _ => return Err(format!("{} is not an operation", &op)),
+            })
+        }
+    };
+    ($(#[$outer:meta])* $vis:vis $name:ident $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
+        $(#[$outer])*
+        $vis fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+            $using
+            Ok(match op {
+                $( $inst => $func,)+
+                _ => return Err(format!("{} is not an operation", &op)),
+            })
+        }
+    };
+    ($(#[$outer:meta])* $name:ident { $( $inst:pat => $func:expr ),+ $(,)? }) => {
+        $(#[$outer])*
+        fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+            Ok(match op {
+                $( $inst => $func,)+
+                _ => return Err(format!("{} is not an operation", &op)),
+            })
+        }
+    };
+    ($(#[$outer:meta])* $name:ident $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
+        $(#[$outer])*
+        fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+            $using
+            Ok(match op {
+                $( $inst => $func,)+
+                _ => return Err(format!("{} is not an operation", &op)),
+            })
+        }
+    };
+}
+
+/// Macro to extend any base instruction set
+#[macro_export]
+macro_rules! extension {
+    ($(#[$outer:meta])* $vis:vis $name:ident extends $root:expr; { $( $inst:pat => $func:expr ),+ $(,)? }) => {
+        $(#[$outer])*
+        $vis fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+            Ok(match op {
+                $( $inst => $func,)+
+                _ => $root(op)?,
+            })
+        }
+    };
+    ($(#[$outer:meta])* $vis:vis $name:ident extends $root:expr, $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
+        $(#[$outer])*
+        $vis fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+            $using
+            Ok(match op {
+                $( $inst => $func,)+
+                _ => $root(op)?,
+            })
+        }
+    };
+    ($(#[$outer:meta])* $name:ident extends $root:expr; { $( $inst:pat => $func:expr ),+ $(,)? }) => {
+        $(#[$outer])*
+        fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+            Ok(match op {
+                $( $inst => $func,)+
+                _ => $root(op)?,
+            })
+        }
+    };
+    ($(#[$outer:meta])* $name:ident extends $root:expr, $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
+        $(#[$outer])*
+        fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+            $using
+            Ok(match op {
+                $( $inst => $func,)+
+                _ => $root(op)?,
+            })
+        }
+    };
+}
+
+inst_set! {
+    // Base instruction set
+    pub get_fn use crate::exec::{mov, cmp, io, arith, bitman}; {
         "LDM" => mov::ldm,
         "LDD" => mov::ldd,
         "LDI" => mov::ldi,
@@ -171,8 +205,6 @@ pub fn get_fn(op: &str) -> Result<Func, String> {
 
         "IN" => io::inp,
         "OUT" => io::out,
-        "DBG" => io::dbg,
-        "RIN" => io::rin,
         "END" => io::end,
 
         "INC" => arith::inc,
@@ -190,9 +222,16 @@ pub fn get_fn(op: &str) -> Result<Func, String> {
         "XORM" => bitman::xorm,
         "LSL" => bitman::lsl,
         "LSR" => bitman::lsr,
+    }
+}
 
-        _ => return Err(format!("{} is not an operation", &op)),
-    })
+extension! {
+    // Extended instruction set
+    #[cfg(not(feature = "cambridge"))]
+    pub get_fn_ext extends get_fn, use crate::exec::io; {
+        "DBG" => io::dbg,
+        "RIN" => io::rin,
+    }
 }
 
 fn get_inst(inst: Pair<Rule>) -> Inst {
@@ -258,7 +297,7 @@ fn get_insts(inst: Pairs<Rule>) -> Vec<Inst> {
     out
 }
 
-fn process_insts(insts: &[Inst], func: fn(&str) -> Result<Func, String>) -> Vec<FinInst> {
+fn process_insts(insts: &[Inst], inst_set: fn(&str) -> Result<Func, String>) -> Vec<FinInst> {
     let mut links = Vec::new();
 
     for (i, (addr, _, _)) in insts.iter().enumerate() {
@@ -287,10 +326,10 @@ fn process_insts(insts: &[Inst], func: fn(&str) -> Result<Func, String>) -> Vec<
         out.push((
             i.0,
             (
-                func(&(i.1).0.to_uppercase()).unwrap_or_else(|s| panic!("{}", s)),
+                inst_set(&(i.1).0.to_uppercase()).unwrap_or_else(|s| panic!("{}", s)),
                 (i.1).1,
             ),
-        ))
+        ));
     }
 
     out
@@ -371,20 +410,16 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
             if op.contains('#') {
                 op.remove(0);
 
-                match op.chars().next().unwrap() {
+                finop = match op.chars().next().unwrap() {
                     'b' | 'B' => {
-                        finop = {
-                            op.remove(0);
-                            Some(usize::from_str_radix(&op, 2).unwrap().to_string())
-                        }
+                        op.remove(0);
+                        Some(usize::from_str_radix(&op, 2).unwrap().to_string())
                     }
                     'x' | 'X' => {
-                        finop = {
-                            op.remove(0);
-                            Some(usize::from_str_radix(&op, 16).unwrap().to_string())
-                        }
+                        op.remove(0);
+                        Some(usize::from_str_radix(&op, 16).unwrap().to_string())
                     }
-                    '0'..='9' => finop = Some(op.parse::<usize>().unwrap().to_string()),
+                    '0'..='9' => Some(op.parse::<usize>().unwrap().to_string()),
                     _ => panic!("{} is an invalid operand", &op),
                 }
             }
@@ -400,24 +435,24 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
 #[cfg(not(feature = "cambridge"))]
 #[test]
 fn parse_test() {
+    use std::path::PathBuf;
+
     let mut t = std::time::Instant::now();
 
-    let mut exec = parse(&std::path::PathBuf::from("examples/ex1.pasm"), get_fn);
-    println!("\n{:?}", &t.elapsed());
+    let mut exec = from_file(&PathBuf::from("examples/ex1.pasm"), get_fn_ext);
     exec.exec();
-    println!("\n{:?}", &t.elapsed());
+    println!("{:?}", t.elapsed());
+    assert_eq!(exec.ctx.acc, 65);
 
     t = std::time::Instant::now();
-
-    let mut exec = parse(&std::path::PathBuf::from("examples/ex2.pasm"), get_fn);
-    println!("\n{:?}", &t.elapsed());
+    exec = from_file(&PathBuf::from("examples/ex2.pasm"), get_fn_ext);
     exec.exec();
-    println!("\n{:?}", &t.elapsed());
+    println!("{:?}", t.elapsed());
+    assert_eq!(exec.ctx.acc, 15625);
 
     t = std::time::Instant::now();
-
-    let mut exec = parse(&std::path::PathBuf::from("examples/ex3.pasm"), get_fn);
-    println!("\n{:?}", &t.elapsed());
+    exec = from_file(&PathBuf::from("examples/ex3.pasm"), get_fn_ext);
     exec.exec();
-    println!("\n{:?}", &t.elapsed());
+    println!("{:?}", t.elapsed());
+    assert_eq!(exec.ctx.acc, 10);
 }

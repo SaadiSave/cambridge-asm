@@ -7,94 +7,81 @@ use super::{Context, Op, PasmError, PasmResult};
 
 pub fn jmp(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| {
-            PasmError::from(
-                "Operand is not an integer. Did you want to use a label? If so, check the label.",
-            )
-        })?;
+        .map_err(|_| PasmError::InvalidOperand)?;
 
     ctx.mar = x;
+    ctx.flow_override_reg = true;
 
     Ok(())
 }
 
 pub fn cmp(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| {
-            PasmError::from(
-                "Operand is not an integer. Did you want to use a label? If so, check the label.",
-            )
-        })?;
+        .map_err(|_| PasmError::InvalidOperand)?;
 
     ctx.cmpr = ctx.acc == ctx.mem.get(&x)?;
 
-    ctx.increment()
+    Ok(())
 }
 
 pub fn cmpm(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| PasmError::from("Operand is not a decimal, hexadecimal, or binary number."))?;
+        .map_err(|_| PasmError::InvalidLiteral)?;
 
     ctx.cmpr = ctx.acc == x;
 
-    ctx.increment()
+    Ok(())
 }
 
 pub fn cmi(ctx: &mut Context, op: Op) -> PasmResult {
     let mut x = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| {
-            PasmError::from(
-                "Operand is not an integer. Did you want to use a label? If so, check the label.",
-            )
-        })?;
+        .map_err(|_| PasmError::InvalidOperand)?;
 
     x = ctx.mem.get(&x)?;
 
     ctx.cmpr = ctx.acc == ctx.mem.get(&x).map_err(|_| PasmError::from("The value at this memory location is not a valid memory location. Did you want to use a label? If so, check the label."))?;
 
-    ctx.increment()
+    Ok(())
 }
 
 pub fn jpe(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| {
-            PasmError::from(
-                "Operand is not an integer. Did you want to use a label? If so, check the label.",
-            )
-        })?;
+        .map_err(|_| PasmError::InvalidOperand)?;
+
+    ctx.flow_override_reg = true;
 
     if ctx.cmpr {
         ctx.mar = x;
-        Ok(())
     } else {
-        ctx.increment()
+        ctx.mar += 1;
     }
+
+    Ok(())
 }
 
 pub fn jpn(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| {
-            PasmError::from(
-                "Operand is not an integer. Did you want to use a label? If so, check the label.",
-            )
-        })?;
+        .map_err(|_| PasmError::InvalidOperand)?;
+
+    ctx.flow_override_reg = true;
 
     if ctx.cmpr {
-        ctx.increment()
+        ctx.mar += 1;
     } else {
         ctx.mar = x;
-        Ok(())
     }
+
+    Ok(())
 }

@@ -7,100 +7,88 @@ use super::{Context, Op, PasmError, PasmResult};
 
 pub fn and(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| {
-            PasmError::from(
-                "Operand is not an integer. Did you want to use a label? If so, check the label.",
-            )
-        })?;
+        .map_err(|_| PasmError::InvalidOperand)?;
 
     ctx.acc &= ctx.mem.get(&x)?;
 
-    ctx.increment()
+    Ok(())
 }
 
 pub fn andm(ctx: &mut Context, op: Op) -> PasmResult {
     let x: usize = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| PasmError::from("Operand is not a decimal, hexadecimal, or binary number."))?;
+        .map_err(|_| PasmError::InvalidLiteral)?;
 
     ctx.acc &= x;
 
-    ctx.increment()
+    Ok(())
 }
 
 pub fn or(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| {
-            PasmError::from(
-                "Operand is not an integer. Did you want to use a label? If so, check the label.",
-            )
-        })?;
+        .map_err(|_| PasmError::InvalidOperand)?;
 
     ctx.acc |= ctx.mem.get(&x)?;
 
-    ctx.increment()
+    Ok(())
 }
 
 pub fn orm(ctx: &mut Context, op: Op) -> PasmResult {
     let x: usize = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| PasmError::from("Operand is not a decimal, hexadecimal, or binary number."))?;
+        .map_err(|_| PasmError::InvalidLiteral)?;
 
     ctx.acc |= x;
 
-    ctx.increment()
+    Ok(())
 }
 
 pub fn xor(ctx: &mut Context, op: Op) -> PasmResult {
     let x = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| {
-            PasmError::from(
-                "Operand is not an integer. Did you want to use a label? If so, check the label.",
-            )
-        })?;
+        .map_err(|_| PasmError::InvalidOperand)?;
 
     ctx.acc ^= ctx.mem.get(&x)?;
 
-    ctx.increment()
+    Ok(())
 }
 
 pub fn xorm(ctx: &mut Context, op: Op) -> PasmResult {
     let x: usize = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| PasmError::from("Operand is not a decimal, hexadecimal, or binary number."))?;
+        .map_err(|_| PasmError::InvalidLiteral)?;
 
     ctx.acc ^= x;
 
-    ctx.increment()
+    Ok(())
 }
 
 pub fn lsl(ctx: &mut Context, op: Op) -> PasmResult {
     let x: usize = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| PasmError::from("Operand is not a decimal, hexadecimal, or binary number."))?;
+        .map_err(|_| PasmError::InvalidLiteral)?;
 
     ctx.acc <<= x;
 
-    ctx.increment()
+    Ok(())
 }
 
 pub fn lsr(ctx: &mut Context, op: Op) -> PasmResult {
     let x: usize = op
-        .ok_or_else(|| PasmError::from("No Operand"))?
+        .ok_or(PasmError::NoOperand)?
         .parse()
-        .map_err(|_| PasmError::from("Operand is not a decimal, hexadecimal, or binary number."))?;
+        .map_err(|_| PasmError::InvalidLiteral)?;
 
     ctx.acc >>= x;
 
-    ctx.increment()
+    Ok(())
 }

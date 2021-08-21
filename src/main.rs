@@ -32,7 +32,11 @@ fn main() {
 
     let path = PathBuf::from(input);
 
-    let mut exec = parse::parse(&path, parse::get_fn);
+    #[cfg(feature = "cambridge")]
+    let mut exec = parse::from_file(&path, parse::get_fn);
+
+    #[cfg(not(feature = "cambridge"))]
+    let mut exec = parse::from_file(&path, parse::get_fn_ext);
 
     x.is_some().then(|| {
         println!("Total parse time: {:?}", x.unwrap().elapsed());
@@ -61,12 +65,16 @@ fn set_log_level(v: u64) {
 #[cfg(not(debug_assertions))]
 fn handle_panic(info: &std::panic::PanicInfo) {
     if let Some(l) = info.location() {
-        println!("Panic occured at {}:{} -", l.file(), l.line())
+        println!(
+            "Program panicked (crashed). Panic occurred at {}:{} -",
+            l.file(),
+            l.line()
+        );
     } else {
-        println!("Panic occured, unable to determine location -")
+        println!("Program panicked (crashed). Unable to locate the source of the panic -");
     }
 
     if let Some(msg) = info.payload().downcast_ref::<String>() {
-        println!("{}\n\nTo debug, try increasing the verbosity by passing -v flags if the error message is unclear.\nOpen an issue on github if the panic appears to be an internal error.", msg)
+        println!("{}\n\nTo debug, try increasing the verbosity by passing -v flags if the error message is unclear.\nOpen an issue on github if the panic appears to be an internal error.", msg);
     }
 }

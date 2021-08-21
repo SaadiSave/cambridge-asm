@@ -3,82 +3,82 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use super::{Context, Op, PasmError, PasmResult};
+use crate::{exec::PasmError, inst};
 use std::io::Read;
 
-pub fn end(ctx: &mut Context, _: Op) -> PasmResult {
-    ctx.increment()
-}
+inst!(end {});
 
-pub fn out(ctx: &mut Context, _: Op) -> PasmResult {
-    let x = ctx.acc;
+inst!(
+    out | ctx | {
+        let x = ctx.acc;
 
-    if x > 255 {
-        return Err(PasmError::from(format!(
-            "The value in the ACC, `{}`, is not a valid UTF-8 byte.",
-            &x
-        )));
+        if x > 255 {
+            return Err(PasmError::from(format!(
+                "The value in the ACC, `{}`, is not a valid UTF-8 byte.",
+                &x
+            )));
+        }
+
+        let out = x as u8 as char;
+
+        print!("{}", &out);
     }
+);
 
-    let out = x as u8 as char;
+inst!(
+    inp | ctx | {
+        let mut x = [0; 1];
 
-    print!("{}", &out);
+        std::io::stdin()
+            .read_exact(&mut x)
+            .expect("Unable to read stdin");
 
-    ctx.increment()
-}
-
-pub fn inp(ctx: &mut Context, _: Op) -> PasmResult {
-    let mut x = [0; 1];
-
-    std::io::stdin()
-        .read_exact(&mut x)
-        .expect("Unable to read stdin");
-
-    ctx.acc = x[0] as usize;
-
-    ctx.increment()
-}
+        ctx.acc = x[0] as usize;
+    }
+);
 
 // Custom instruction for debug logging
-#[cfg(not(feature = "cambridge"))]
-pub fn dbg(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op.ok_or_else(|| PasmError::from("No Operand"))?;
+inst!(
+    #[cfg(not(feature = "cambridge"))]
+    dbg | ctx,
+    op | {
+        let x = op.ok_or(PasmError::NoOperand)?;
 
-    let out = match x.as_str() {
-        "ix" | "IX" => ctx.ix,
-        "acc" | "ACC" => ctx.acc,
-        _ => {
-            if let Ok(s) = x.parse() {
-                ctx.mem.get(&s)?
-            } else {
-                return Err(PasmError::from(format!(
-                    "{} is not a register or a memory address",
-                    &x
-                )));
+        let out = match x.as_str() {
+            "ix" | "IX" => ctx.ix,
+            "acc" | "ACC" => ctx.acc,
+            _ => {
+                if let Ok(s) = x.parse() {
+                    ctx.mem.get(&s)?
+                } else {
+                    return Err(PasmError::from(format!(
+                        "{} is not a register or a memory address",
+                        &x
+                    )));
+                }
             }
-        }
-    };
+        };
 
-    println!("{}", &out);
-
-    ctx.increment()
-}
+        println!("{}", &out);
+    }
+);
 
 // Raw input - directly input integers
-#[cfg(not(feature = "cambridge"))]
-pub fn rin(ctx: &mut Context, _: Op) -> PasmResult {
-    let mut x = String::new();
+inst!(
+    #[cfg(not(feature = "cambridge"))]
+    rin | ctx
+        | {
+            let mut x = String::new();
 
-    std::io::stdin()
-        .read_line(&mut x)
-        .expect("Unable to read stdin");
+            std::io::stdin()
+                .read_line(&mut x)
+                .expect("Unable to read stdin");
 
-    x.ends_with('\n').then(|| x.pop());
-    x.ends_with('\r').then(|| x.pop());
+            x.ends_with('\n').then(|| x.pop());
+            x.ends_with('\r').then(|| x.pop());
 
-    ctx.acc = x
-        .parse()
-        .unwrap_or_else(|_| panic!("'{}' is not an integer", &x));
-
-    ctx.increment()
-}
+            ctx.acc = x
+                .parse()
+                .unwrap_or_else(|_| panic!("'{}' is not an integer", &x));
+        }
+);

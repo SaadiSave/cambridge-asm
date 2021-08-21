@@ -32,12 +32,29 @@ pub mod bitman;
 pub type PasmResult = Result<(), PasmError>;
 
 #[derive(Debug)]
-#[repr(transparent)]
-pub struct PasmError(String);
+pub enum PasmError {
+    Str(String),
+    InvalidUtf8Byte(u8),
+    InvalidLiteral,
+    InvalidOperand,
+    NoOperand,
+    InvalidMemoryLoc(String),
+    InvalidIndirectAddress,
+}
 
 impl Display for PasmError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
+        use PasmError::*;
+
+        match self {
+            Str(s) => f.write_str(s),
+            InvalidUtf8Byte(b) => f.write_fmt(format_args!("The value in the ACC, `{}`, is not a valid UTF-8 byte.", b)),
+            InvalidLiteral => f.write_str("Operand is not a decimal, hexadecimal, or binary number."),
+            InvalidOperand => f.write_str("Operand is not an integer. If you wanted to use a label, please double-check the label."),
+            NoOperand => f.write_str("Operand missing."),
+            InvalidMemoryLoc(l) => f.write_fmt(format_args!("Memory location `{}` does not exist.", l)),
+            InvalidIndirectAddress => f.write_str("The value at this memory location is not a valid memory location. If you wanted to use a label, please double-check the label."),
+        }
     }
 }
 
@@ -45,7 +62,7 @@ impl std::error::Error for PasmError {}
 
 impl<T: Deref<Target = str>> From<T> for PasmError {
     fn from(s: T) -> Self {
-        PasmError(s.to_string())
+        PasmError::Str(s.to_string())
     }
 }
 
@@ -53,21 +70,43 @@ impl<T: Deref<Target = str>> From<T> for PasmError {
 pub struct Source(Vec<String>);
 
 impl Source {
-    fn handle_err(&self, err: &PasmError, pos: usize) -> ! {
+    fn handle_err(&self, err: &PasmError, pos: usize) {
         let mut out = String::new();
-        out.push_str("Error {\n");
+        out.push_str("Runtime Error:\n");
 
         for (i, s) in self.0.iter().enumerate() {
             if pos == i {
-                out.push_str(&format!("\n    {}\t{}", i + 1, s));
-                out.push_str(&format!("\t< {}\n", &err.0));
-                out.push('\n');
+                if let Some(prev) = self.0.get(i - 1) {
+                    out.push_str(&format!(
+                        "\n{num:>w$}    {}",
+                        prev,
+                        num = i,
+                        w = self.whitespace()
+                    ));
+                }
+                out.push_str(&format!(
+                    "\n{num:>w$}    {} <-",
+                    s,
+                    num = i + 1,
+                    w = self.whitespace()
+                ));
+                if let Some(next) = self.0.get(i + 1) {
+                    out.push_str(&format!(
+                        "\n{num:>w$}    {}",
+                        next,
+                        num = i + 2,
+                        w = self.whitespace()
+                    ));
+                }
+                out.push_str(&format!("\n\nmessage: {}", err));
                 break;
             }
         }
+        println!("{}", out);
+    }
 
-        out.push('}');
-        panic!("{}", &out);
+    fn whitespace(&self) -> usize {
+        self.0.len().to_string().len()
     }
 }
 
@@ -82,7 +121,7 @@ impl Debug for Source {
         f.write_str("Program {\n")?;
 
         for inst in &self.0 {
-            f.write_fmt(format_args!("\t{}\n", &inst))?;
+            f.write_fmt(format_args!("\t{}\n", inst))?;
         }
 
         f.write_str("}\n")
@@ -91,14 +130,19 @@ impl Debug for Source {
 
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct Memory<K: Ord, V: Clone>(pub BTreeMap<K, V>);
+pub struct Memory<K: Ord, V: Clone>(BTreeMap<K, V>);
 
-impl<K: Ord, V: Clone> Memory<K, V> {
+impl<K: Ord + Debug, V: Clone> Memory<K, V> {
+    #[must_use]
+    pub fn new(data: BTreeMap<K, V>) -> Memory<K, V> {
+        Memory(data)
+    }
+
     pub fn get(&self, loc: &K) -> Result<V, PasmError> {
         let x = self
             .0
             .get(loc)
-            .ok_or_else(|| PasmError::from("Memory does not contain this location"))?;
+            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{:?}", loc)))?;
         Ok(x.clone())
     }
 
@@ -106,7 +150,7 @@ impl<K: Ord, V: Clone> Memory<K, V> {
         let x = self
             .0
             .get_mut(loc)
-            .ok_or_else(|| PasmError::from("Memory does not contain this location"))?;
+            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{:?}", loc)))?;
         *x = dat;
 
         Ok(())
@@ -124,38 +168,68 @@ pub struct Context {
     pub mar: usize,
     pub acc: usize,
     pub ix: usize,
+    pub flow_override_reg: bool,
     pub mem: Memory<usize, usize>,
     pub add_regs: Vec<usize>,
 }
 
 impl Context {
+    #[must_use]
+    pub fn new(mem: Memory<usize, usize>, add_regs: Option<Vec<usize>>) -> Context {
+        Context {
+            cmpr: false,
+            mar: 0,
+            acc: 0,
+            ix: 0,
+            flow_override_reg: false,
+            mem,
+            add_regs: add_regs.map_or(vec![], |regs| regs),
+        }
+    }
+
+    #[inline]
+    pub fn override_flow_control(&mut self) {
+        self.flow_override_reg = true;
+    }
+
+    #[inline]
     pub fn increment(&mut self) -> PasmResult {
         self.mar += 1;
-
+        self.flow_override_reg = true;
         Ok(())
     }
 }
 
 impl Debug for Context {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Context {\n")?;
-        f.write_fmt(format_args!("    mar: {}\n", &self.mar))?;
-        f.write_fmt(format_args!("    acc: {}\n", &self.acc))?;
-        f.write_fmt(format_args!("    ix: {}\n", &self.ix))?;
-        f.write_fmt(format_args!("    cmpr: {}\n", &self.cmpr))?;
-        f.write_fmt(format_args!("    mem: {:?}\n", &self.mem))?;
-        f.write_str("}\n")
+        f.debug_struct("Context")
+            .field("mar", &self.mar)
+            .field("acc", &self.acc)
+            .field("ix", &self.ix)
+            .field("cmpr", &self.cmpr)
+            .field("mem", &self.mem)
+            .finish()
     }
 }
 
 pub struct Executor {
-    pub source: Source,
-    pub prog: Memory<usize, Cmd>,
-    pub ctx: Context,
-    pub count: u64,
+    source: Source,
+    prog: Memory<usize, Cmd>,
+    pub(crate) ctx: Context,
+    count: u64,
 }
 
 impl Executor {
+    #[must_use]
+    pub fn new(source: impl Into<Source>, prog: Memory<usize, Cmd>, ctx: Context) -> Executor {
+        Executor {
+            source: source.into(),
+            prog,
+            ctx,
+            count: 0,
+        }
+    }
+
     pub fn exec(&mut self) {
         loop {
             if self.ctx.mar == self.prog.0.len() {
@@ -166,29 +240,113 @@ impl Executor {
 
             trace!("Executing line {}", self.ctx.mar + 1);
 
-            let cir = self.prog.get(&self.ctx.mar).unwrap_or_else(|_| {
-                self.source.handle_err(
-                    &PasmError::from("Unable to fetch instruction. Please report this as a bug."),
-                    self.ctx.mar,
-                )
-            });
-            cir.0(&mut self.ctx, cir.1).unwrap_or_else(|e| self.source.handle_err(&e, self.ctx.mar));
+            let cir = if let Ok(cir) = self.prog.get(&self.ctx.mar) {
+                cir
+            } else {
+                panic!("Unable to fetch instruction. Please report this as a bug with full debug logs attached.")
+            };
+
+            match cir.0(&mut self.ctx, cir.1) {
+                Ok(_) => (),
+                Err(e) => {
+                    self.source.handle_err(&e, self.ctx.mar);
+                    return;
+                }
+            }
+
+            if self.ctx.flow_override_reg {
+                self.ctx.flow_override_reg = false;
+            } else {
+                self.ctx.mar += 1;
+            }
         }
 
-        debug!("Total instructions executed: {}", self.count)
+        debug!("Total instructions executed: {}", self.count);
     }
 }
 
 impl Debug for Executor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Executor {\n")?;
-
-        for i in &self.prog.0 {
-            f.write_fmt(format_args!("    {:?}\n", (i.0, (i.1).1.as_ref())))?;
-        }
-
-        f.write_str("}\n")
+        f.debug_map()
+            .entries(self.prog.0.iter().map(|(line, (_, op))| {
+                (
+                    line,
+                    if op.is_some() {
+                        op.as_ref().unwrap()
+                    } else {
+                        ""
+                    },
+                )
+            }))
+            .finish()
     }
+}
+
+/// Macro to generate an instruction implementation
+///
+/// # Examples
+/// ```
+/// // Ensure all types are imported
+/// use cambridge_asm::{exec::{PasmResult, Op, Context}, inst};
+///
+/// // No Context
+/// inst!(name1 { /* Do something that doesn't need context or op*/ });
+///
+/// // Context only
+/// inst!(name2 | ctx | { /* Do something with ctx */ });
+///
+/// // Context and op
+/// inst!(name3 | ctx, op | { /* Do something with ctx and op */ });
+/// ```
+///
+/// For further reference, look at the source of the module [`exec::io`]
+#[macro_export]
+macro_rules! inst {
+    ($(#[$outer:meta])* $name:ident |$ctx:ident, $op:ident| { $( $code:tt )* }) => {
+        $(#[$outer])*
+        pub fn $name($ctx: &mut $crate::exec::Context, $op: $crate::exec::Op) -> $crate::exec::PasmResult {
+            $( $code )*
+            Ok(())
+        }
+    };
+    ($(#[$outer:meta])* $name:ident |$ctx:ident| { $( $code:tt )* }) => {
+        $(#[$outer])*
+        pub fn $name($ctx: &mut $crate::exec::Context, _: $crate::exec::Op) -> $crate::exec::PasmResult {
+            $( $code )*
+            Ok(())
+        }
+    };
+    ($(#[$outer:meta])* $name:ident { $( $code:tt )* }) => {
+        $(#[$outer])*
+        pub fn $name(_: &mut $crate::exec::Context, _: $crate::exec::Op) -> $crate::exec::PasmResult {
+            $( $code )*
+            Ok(())
+        }
+    };
+    ($(#[$outer:meta])* $name:ident |$ctx:ident, $op:ident| override { $( $code:tt )* }) => {
+        $(#[$outer])*
+        pub fn $name($ctx: &mut $crate::exec::Context, $op: $crate::exec::Op) -> $crate::exec::PasmResult {
+            $ctx.override_flow_control();
+            $( $code )*
+            Ok(())
+        }
+    };
+    ($(#[$outer:meta])* $name:ident |$ctx:ident| override { $( $code:tt )* }) => {
+        $(#[$outer])*
+        pub fn $name($ctx: &mut $crate::exec::Context, _: $crate::exec::Op) -> $crate::exec::PasmResult {
+            $ctx.override_flow_control();
+            $( $code )*
+            Ok(())
+        }
+    };
+    ($(#[$outer:meta])* $name:ident override { $( $code:tt )* }) => {
+        $(#[$outer])*
+        pub fn $name(ctx: &mut $crate::exec::Context, _: $crate::exec::Op) -> $crate::exec::PasmResult {
+            ctx.override_flow_control();
+            $( $code )*
+            Ok(())
+        }
+    };
 }
 
 #[cfg(test)]
@@ -197,7 +355,7 @@ fn exec() {
     let mut prog: BTreeMap<usize, Cmd> = BTreeMap::new();
     let mut mem: BTreeMap<usize, usize> = BTreeMap::new();
 
-    // Divison algorithm from pg 101 of textbook
+    // Division algorithm from pg 101 of textbook
     prog.insert(0, (mov::ldd, Some("200".into())));
     prog.insert(1, (mov::sto, Some("202".into())));
     prog.insert(2, (mov::sto, Some("203".into())));
@@ -210,7 +368,7 @@ fn exec() {
     prog.insert(9, (cmp::cmp, Some("204".into())));
     prog.insert(10, (cmp::jpn, Some("3".into())));
     prog.insert(11, (mov::ldd, Some("202".into())));
-    prog.insert(12, (io::out, Some("ACC".into())));
+    prog.insert(12, (io::out, None));
     prog.insert(13, (io::end, None));
 
     // Memory partition
@@ -222,19 +380,12 @@ fn exec() {
 
     let mut exec = Executor {
         source: "None".into(),
-        prog: Memory(prog),
-        ctx: Context {
-            cmpr: false,
-            mar: 0,
-            acc: 0,
-            ix: 0,
-            mem: Memory(mem),
-            add_regs: vec![],
-        },
+        prog: Memory::new(prog),
+        ctx: Context::new(Memory::new(mem), None),
         count: 0,
     };
 
-    let t = std::time::Instant::now();
     exec.exec();
-    println!("{:?}", t.elapsed())
+
+    assert_eq!(exec.ctx.acc, 15);
 }

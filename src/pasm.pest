@@ -4,12 +4,12 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 address = { num+ }
-label = @{ ( !(":") ~ unicode )+ ~ ":" }
+label = @{ ( !":" ~ unicode )+ ~ ":" }
 op = { alpha+ }
 data = { num+ }
 // idata = { hex+ | num+ }
-immediate = _{ "#" ~ ( num+ | ( ("b" | "B") ~ ('0'..'1')+ ) | ( ("x" | "X") ~ hex+ ) ) }
-operand = { immediate | address | ( !("//") ~ unicode )+ }
+immediate = _{ "#" ~ ( num+ | ("b" | "B") ~ bin+ | ("x" | "X") ~ hex+ ) }
+operand = @{ immediate | address | !"//" ~ !"#" ~ unicode+ }
 
 instruction = ${ ( address | label )? ~ space+? ~ op ~ space+? ~ operand? ~ space+? ~ comment? ~ NEWLINE }
 prog = ${ whitespace* ~ instruction+ ~ whitespace* }
@@ -20,9 +20,10 @@ memory = ${ whitespace* ~ memoryentry+ ~ whitespace* }
 comment = _{ "//" ~ space* ~ ( unicode+ ~ space* )* ~ space* }
 
 space = _{ " " | "\t" }
-whitespace = _{ (space | NEWLINE) }
+whitespace = _{ space | NEWLINE }
 num = _{ ASCII_DIGIT }
 alpha = _{ ASCII_ALPHA }
 // alphanum = _{ ASCII_ALPHANUMERIC }
 hex = _{ ASCII_HEX_DIGIT }
+bin = _{ ASCII_BIN_DIGIT }
 unicode = _{ !space ~ !NEWLINE ~ ANY }
