@@ -3,16 +3,16 @@ version: "0.8.0"
 author: Saadi Save <github.com/SaadiSave>
 about: Run pseudoassembly from Cambridge International syllabus 9618 (2021)
 args:
-    - INPUT:
-          help: Path to the input file containing pseudoassembly
-        required: true
-        index: 1
-    - verbose:
-          short: v
-        multiple: true
-        required: false
-          help: Increase the logging level
-    - perf:
-          short: t
-        required: false
-          help: Show execution time
+  - INPUT:
+      help: Path to the input file containing pseudoassembly
+      required: true
+      index: 1
+  - verbose:
+      short: v
+      multiple: true
+      required: false
+      help: Increases the logging level
+  - perf:
+      short: t
+      required: false
+      help: Shows execution time
