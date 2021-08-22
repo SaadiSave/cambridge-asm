@@ -9,6 +9,15 @@ insert_final_newline = true
 max_line_length = 120
 tab_width = 4
 
+[*.lock]
+charset = unset
+end_of_line = unset
+indent_size = unset
+indent_style = unset
+insert_final_newline = unset
+max_line_length = unset
+tab_width = unset
+
 [*.rs]
 max_line_length = 100
 
