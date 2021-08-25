@@ -33,9 +33,12 @@ pub fn ldi(ctx: &mut Context, op: Op) -> PasmResult {
         .parse()
         .map_err(|_| PasmError::InvalidOperand)?;
 
-    x = ctx.mem.get(&x)?;
+    x = ctx.mem.get_address(&x)?;
 
-    ctx.acc = ctx.mem.get(&x).map_err(|_| PasmError::from("The value at this memory location is not a valid memory location. Did you want to use a label? If so, check the label."))?;
+    ctx.acc = ctx
+        .mem
+        .get(&x)
+        .map_err(|_| PasmError::InvalidIndirectAddress(x))?;
 
     Ok(())
 }

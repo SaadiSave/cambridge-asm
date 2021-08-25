@@ -1,19 +1,17 @@
-LOOP: LDX 201
+LOOP: LDI PTR
 OUT
-INC IX
-LDD CNT
+LDD PTR
 INC ACC
-STO CNT
-CMP #5
+STO PTR
+CMP #207
 JPN LOOP
-LDM #10 // Code for newline
-OUT // Output newline
 END // This program prints HELLO
 
 
-CNT: 0
+PTR: 201
 201 72 // H
 202 69 // E
 203 76 // L
 204 76 // L
 205 79 // O
+206 10 // \n

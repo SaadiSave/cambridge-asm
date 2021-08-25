@@ -53,13 +53,13 @@ inst!(
                 } else {
                     return Err(PasmError::from(format!(
                         "{} is not a register or a memory address",
-                        &x
+                        x
                     )));
                 }
             }
         };
 
-        println!("{}", &out);
+        println!("{}", out);
     }
 );
 

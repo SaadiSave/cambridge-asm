@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::exec::{Cmd, Context, Executor, Func, Memory, Source};
+use crate::exec::{Cmd, Context, Executor, Func, MemEntry, Memory, Source};
 use pest::{
     iterators::{Pair, Pairs},
     Parser,
@@ -36,7 +36,7 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
 
         v.iter()
             .map(|&s| {
-                let mut x = s.to_owned();
+                let mut x = s.to_string();
                 (!x.ends_with(line_ending)).then(|| x.push_str(line_ending));
                 x
             })
@@ -107,7 +107,7 @@ macro_rules! inst_set {
         $vis fn $name(op: &str) -> Result<$crate::exec::Func, String> {
             Ok(match op {
                 $( $inst => $func,)+
-                _ => return Err(format!("{} is not an operation", &op)),
+                _ => return Err(format!("{} is not an operation", op)),
             })
         }
     };
@@ -117,7 +117,7 @@ macro_rules! inst_set {
             $using
             Ok(match op {
                 $( $inst => $func,)+
-                _ => return Err(format!("{} is not an operation", &op)),
+                _ => return Err(format!("{} is not an operation", op)),
             })
         }
     };
@@ -126,7 +126,7 @@ macro_rules! inst_set {
         fn $name(op: &str) -> Result<$crate::exec::Func, String> {
             Ok(match op {
                 $( $inst => $func,)+
-                _ => return Err(format!("{} is not an operation", &op)),
+                _ => return Err(format!("{} is not an operation", op)),
             })
         }
     };
@@ -136,7 +136,7 @@ macro_rules! inst_set {
             $using
             Ok(match op {
                 $( $inst => $func,)+
-                _ => return Err(format!("{} is not an operation", &op)),
+                _ => return Err(format!("{} is not an operation", op)),
             })
         }
     };
@@ -377,7 +377,7 @@ fn get_mems(mem: Pairs<Rule>) -> Vec<Mem> {
     out
 }
 
-fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
+fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, MemEntry)> {
     let mut links = Vec::new();
 
     for (i, (addr, _)) in mems.iter().enumerate() {
@@ -390,19 +390,12 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
 
     debug!("Detected links between program and memory:\n{:?}\n", &links);
 
-    let mut out = Vec::new();
-
-    for (i, j) in mems.iter().enumerate() {
-        out.push((
-            i,
-            j.1.clone().unwrap_or_else(|| "0".into()).parse().unwrap(),
-        ));
-    }
-
+    // linking
     for i in links {
         (prog[i.1].1).1 = Some(i.0.to_string());
     }
 
+    // Literal parsing
     for i in prog.clone().iter().enumerate() {
         let mut finop = (i.1.clone().1).1;
 
@@ -426,6 +419,44 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, usize)> {
         }
 
         (prog[i.0].1).1 = finop;
+    }
+
+    let mut memlinks = Vec::new();
+
+    for (i, (addr, _)) in mems.iter().enumerate() {
+        for (j, (_, op)) in mems.iter().enumerate() {
+            if let Some(o) = op {
+                if addr == o {
+                    memlinks.push((i, j));
+                }
+            }
+        }
+    }
+
+    debug!("Detected links within memory:\n{:?}\n", &memlinks);
+
+    let mut ir = Vec::new();
+
+    for (i, j) in mems.iter().enumerate() {
+        ir.push((
+            i,
+            MemEntry::new(
+                j.1.clone()
+                    .unwrap_or_else(|| "0".to_string())
+                    .parse()
+                    .unwrap(),
+            ),
+        ));
+    }
+
+    for i in memlinks {
+        ir[i.1].1.address = Some(i.0);
+    }
+
+    let mut out = Vec::new();
+
+    for (i, j) in ir {
+        out.push((i, j));
     }
 
     out
@@ -454,5 +485,5 @@ fn parse_test() {
     exec = from_file(&PathBuf::from("examples/ex3.pasm"), get_fn_ext);
     exec.exec();
     println!("{:?}", t.elapsed());
-    assert_eq!(exec.ctx.acc, 10);
+    assert_eq!(exec.ctx.acc, 207);
 }

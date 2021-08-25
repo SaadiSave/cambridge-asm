@@ -3,6 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use std::fmt::{Formatter, Result as FmtResult};
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Display},
@@ -39,11 +40,11 @@ pub enum PasmError {
     InvalidOperand,
     NoOperand,
     InvalidMemoryLoc(String),
-    InvalidIndirectAddress,
+    InvalidIndirectAddress(usize),
 }
 
 impl Display for PasmError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         use PasmError::*;
 
         match self {
@@ -53,7 +54,7 @@ impl Display for PasmError {
             InvalidOperand => f.write_str("Operand is not an integer. If you wanted to use a label, please double-check the label."),
             NoOperand => f.write_str("Operand missing."),
             InvalidMemoryLoc(l) => f.write_fmt(format_args!("Memory location `{}` does not exist.", l)),
-            InvalidIndirectAddress => f.write_str("The value at this memory location is not a valid memory location. If you wanted to use a label, please double-check the label."),
+            InvalidIndirectAddress(v) => f.write_fmt(format_args!("The value at the memory location, '{}', is not a valid memory location. If you wanted to use a label, please double-check the label.", v)),
         }
     }
 }
@@ -117,7 +118,7 @@ impl<T: Deref<Target = str>> From<T> for Source {
 }
 
 impl Debug for Source {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.write_str("Program {\n")?;
 
         for inst in &self.0 {
@@ -130,14 +131,16 @@ impl Debug for Source {
 
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct Memory<K: Ord, V: Clone>(BTreeMap<K, V>);
+pub struct Memory<K: Ord, V>(BTreeMap<K, V>);
 
-impl<K: Ord + Debug, V: Clone> Memory<K, V> {
+impl<K: Ord, V> Memory<K, V> {
     #[must_use]
     pub fn new(data: BTreeMap<K, V>) -> Memory<K, V> {
         Memory(data)
     }
+}
 
+impl<K: Ord + Debug, V: Clone> Memory<K, V> {
     pub fn get(&self, loc: &K) -> Result<V, PasmError> {
         let x = self
             .0
@@ -157,6 +160,83 @@ impl<K: Ord + Debug, V: Clone> Memory<K, V> {
     }
 }
 
+pub struct MemEntry {
+    pub literal: usize,
+    pub address: Option<usize>,
+}
+
+impl MemEntry {
+    #[must_use]
+    pub fn new(val: usize) -> MemEntry {
+        MemEntry {
+            literal: val,
+            address: None,
+        }
+    }
+
+    #[must_use]
+    pub fn as_address(&self) -> usize {
+        self.address.unwrap()
+    }
+}
+
+impl From<usize> for MemEntry {
+    fn from(x: usize) -> Self {
+        MemEntry::new(x)
+    }
+}
+
+impl Debug for MemEntry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        if let Some(a) = self.address {
+            f.write_fmt(format_args!("{}, addr: {}", self.literal, a))
+        } else {
+            f.write_fmt(format_args!("{}", self.literal))
+        }
+    }
+}
+
+impl Memory<usize, MemEntry> {
+    pub fn get(&self, loc: &usize) -> Result<usize, PasmError> {
+        let x = self
+            .0
+            .get(loc)
+            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{:?}", loc)))?;
+        Ok(x.literal)
+    }
+
+    pub fn get_address(&self, loc: &usize) -> Result<usize, PasmError> {
+        let x = self
+            .0
+            .get(loc)
+            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{:?}", loc)))?;
+        Ok(x.as_address())
+    }
+
+    pub fn write(&mut self, loc: &usize, dat: usize) -> PasmResult {
+        let x = self
+            .0
+            .get_mut(loc)
+            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{:?}", loc)))?;
+
+        if x.literal <= dat {
+            let offset = dat - x.literal;
+            x.literal = dat;
+            if let Some(a) = x.address {
+                x.address = Some(a + offset);
+            };
+        } else {
+            let offset = x.literal - dat;
+            x.literal = dat;
+            if let Some(a) = x.address {
+                x.address = Some(a - offset);
+            }
+        }
+
+        Ok(())
+    }
+}
+
 pub type Op = Option<String>;
 
 pub type Func = fn(&mut Context, Op) -> PasmResult;
@@ -169,13 +249,13 @@ pub struct Context {
     pub acc: usize,
     pub ix: usize,
     pub flow_override_reg: bool,
-    pub mem: Memory<usize, usize>,
+    pub mem: Memory<usize, MemEntry>,
     pub add_regs: Vec<usize>,
 }
 
 impl Context {
     #[must_use]
-    pub fn new(mem: Memory<usize, usize>, add_regs: Option<Vec<usize>>) -> Context {
+    pub fn new(mem: Memory<usize, MemEntry>, add_regs: Option<Vec<usize>>) -> Context {
         Context {
             cmpr: false,
             mar: 0,
@@ -183,7 +263,7 @@ impl Context {
             ix: 0,
             flow_override_reg: false,
             mem,
-            add_regs: add_regs.map_or(vec![], |regs| regs),
+            add_regs: add_regs.unwrap_or_default(),
         }
     }
 
@@ -201,7 +281,7 @@ impl Context {
 }
 
 impl Debug for Context {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.debug_struct("Context")
             .field("mar", &self.mar)
             .field("acc", &self.acc)
@@ -266,7 +346,7 @@ impl Executor {
 }
 
 impl Debug for Executor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.debug_map()
             .entries(self.prog.0.iter().map(|(line, (_, op))| {
                 (
@@ -353,7 +433,7 @@ macro_rules! inst {
 #[test]
 fn exec() {
     let mut prog: BTreeMap<usize, Cmd> = BTreeMap::new();
-    let mut mem: BTreeMap<usize, usize> = BTreeMap::new();
+    let mut mem: BTreeMap<usize, MemEntry> = BTreeMap::new();
 
     // Division algorithm from pg 101 of textbook
     prog.insert(0, (mov::ldd, Some("200".into())));
@@ -372,11 +452,11 @@ fn exec() {
     prog.insert(13, (io::end, None));
 
     // Memory partition
-    mem.insert(200, 0);
-    mem.insert(201, 5);
-    mem.insert(202, 0);
-    mem.insert(203, 0);
-    mem.insert(204, 75);
+    mem.insert(200, 0.into());
+    mem.insert(201, 5.into());
+    mem.insert(202, 0.into());
+    mem.insert(203, 0.into());
+    mem.insert(204, 75.into());
 
     let mut exec = Executor {
         source: "None".into(),

@@ -11,8 +11,8 @@ pub fn jmp(ctx: &mut Context, op: Op) -> PasmResult {
         .parse()
         .map_err(|_| PasmError::InvalidOperand)?;
 
+    ctx.override_flow_control();
     ctx.mar = x;
-    ctx.flow_override_reg = true;
 
     Ok(())
 }
@@ -45,9 +45,13 @@ pub fn cmi(ctx: &mut Context, op: Op) -> PasmResult {
         .parse()
         .map_err(|_| PasmError::InvalidOperand)?;
 
-    x = ctx.mem.get(&x)?;
+    x = ctx.mem.get_address(&x)?;
 
-    ctx.cmpr = ctx.acc == ctx.mem.get(&x).map_err(|_| PasmError::from("The value at this memory location is not a valid memory location. Did you want to use a label? If so, check the label."))?;
+    ctx.cmpr = ctx.acc
+        == ctx
+            .mem
+            .get(&x)
+            .map_err(|_| PasmError::InvalidIndirectAddress(x))?;
 
     Ok(())
 }
@@ -58,12 +62,9 @@ pub fn jpe(ctx: &mut Context, op: Op) -> PasmResult {
         .parse()
         .map_err(|_| PasmError::InvalidOperand)?;
 
-    ctx.flow_override_reg = true;
-
     if ctx.cmpr {
+        ctx.override_flow_control();
         ctx.mar = x;
-    } else {
-        ctx.mar += 1;
     }
 
     Ok(())
@@ -75,11 +76,8 @@ pub fn jpn(ctx: &mut Context, op: Op) -> PasmResult {
         .parse()
         .map_err(|_| PasmError::InvalidOperand)?;
 
-    ctx.flow_override_reg = true;
-
-    if ctx.cmpr {
-        ctx.mar += 1;
-    } else {
+    if !ctx.cmpr {
+        ctx.override_flow_control();
         ctx.mar = x;
     }
 
