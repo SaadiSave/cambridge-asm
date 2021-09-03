@@ -20,13 +20,22 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      
+
+      - name: Run tests
+        run: cargo test && cargo test --all-features
+
+      - name: Cargo login
+        run: cargo login ${{ secrets.CARGO_API_TOKEN }}
+
+      - name: Release crate
+        run: cargo publish
+
       - name: Add targets
         run: rustup target add x86_64-unknown-linux-musl x86_64-pc-windows-gnu
 
       - name: Install MinGW
         run: sudo apt-get install gcc-mingw-w64-x86-64
-      
+
       - name: Linux debug build
         run: cargo build --target x86_64-unknown-linux-musl
 
@@ -65,12 +74,3 @@ jobs:
 
       - name: Release
         run: gh release create -t "cambridge-asm-${{ env.RELEASE_VERSION }}" ${{ env.RELEASE_VERSION }} cambridge-asm-dbg-linux.zip cambridge-asm-dbg-linux.zip.sha256sum cambridge-asm-amd64-linux.zip cambridge-asm-amd64-linux.zip.sha256sum cambridge-asm-x64-windows.zip cambridge-asm-x64-windows.zip.sha256sum.txt cambridge-asm-amd64-caie-linux.zip cambridge-asm-amd64-caie-linux.zip.sha256sum cambridge-asm-x64-caie-windows.zip cambridge-asm-x64-caie-windows.zip.sha256sum.txt
-
-      - name: clean
-        run: rm cambridge-asm-dbg-linux.zip cambridge-asm-dbg-linux.zip.sha256sum cambridge-asm-amd64-linux.zip cambridge-asm-amd64-linux.zip.sha256sum cambridge-asm-x64-windows.zip cambridge-asm-x64-windows.zip.sha256sum.txt cambridge-asm-amd64-caie-linux.zip cambridge-asm-amd64-caie-linux.zip.sha256sum cambridge-asm-x64-caie-windows.zip cambridge-asm-x64-caie-windows.zip.sha256sum.txt
-
-      - name: Cargo login
-        run: cargo login ${{ secrets.CARGO_API_TOKEN }}
-
-      - name: Release crate
-        run: cargo publish
