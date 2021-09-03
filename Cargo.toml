@@ -7,6 +7,10 @@ license = "MPL-2.0"
 description = "Run pseudoassembly from Cambridge International syllabus 9618"
 repository = "https://github.com/SaadiSave/cambridge-asm"
 
+[[bin]]
+name = "casm"
+path = "src/main.rs"
+
 [features]
 cambridge = []
 

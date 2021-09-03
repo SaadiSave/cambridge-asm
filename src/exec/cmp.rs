@@ -6,80 +6,73 @@
 use super::{Context, Op, PasmError, PasmResult};
 
 pub fn jmp(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
+    match op {
+        Op::Loc(x) => {
+            ctx.override_flow_control();
+            ctx.mar = x;
 
-    ctx.override_flow_control();
-    ctx.mar = x;
-
-    Ok(())
+            Ok(())
+        }
+        Op::None => Err(PasmError::NoOperand),
+        _ => Err(PasmError::InvalidOperand),
+    }
 }
 
 pub fn cmp(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
-
-    ctx.cmpr = ctx.acc == ctx.mem.get(&x)?;
-
-    Ok(())
-}
-
-pub fn cmpm(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidLiteral)?;
-
-    ctx.cmpr = ctx.acc == x;
+    match op {
+        Op::Loc(x) => ctx.cmp = ctx.acc == ctx.mem.get(&x)?,
+        Op::Literal(x) => ctx.cmp = ctx.acc == x,
+        Op::None => return Err(PasmError::NoOperand),
+        _ => return Err(PasmError::InvalidOperand),
+    }
 
     Ok(())
 }
 
 pub fn cmi(ctx: &mut Context, op: Op) -> PasmResult {
-    let mut x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
+    match op {
+        Op::Loc(mut x) => {
+            x = ctx.mem.get_address(&x)?;
 
-    x = ctx.mem.get_address(&x)?;
+            ctx.cmp = ctx.acc
+                == ctx
+                    .mem
+                    .get(&x)
+                    .map_err(|_| PasmError::InvalidIndirectAddress(x))?;
 
-    ctx.cmpr = ctx.acc
-        == ctx
-            .mem
-            .get(&x)
-            .map_err(|_| PasmError::InvalidIndirectAddress(x))?;
-
-    Ok(())
+            Ok(())
+        }
+        Op::None => Err(PasmError::NoOperand),
+        _ => Err(PasmError::InvalidOperand),
+    }
 }
 
 pub fn jpe(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
+    match op {
+        Op::Loc(x) => {
+            if ctx.cmp {
+                ctx.override_flow_control();
+                ctx.mar = x;
+            }
 
-    if ctx.cmpr {
-        ctx.override_flow_control();
-        ctx.mar = x;
+            Ok(())
+        }
+        Op::None => Err(PasmError::NoOperand),
+        _ => Err(PasmError::InvalidOperand),
     }
-
-    Ok(())
 }
 
 pub fn jpn(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
+    match op {
+        Op::Loc(x) => {
+            if !ctx.cmp {
+                ctx.override_flow_control();
+                ctx.mar = x;
+            }
 
-    if !ctx.cmpr {
-        ctx.override_flow_control();
-        ctx.mar = x;
+            Ok(())
+        }
+        Op::None => Err(PasmError::NoOperand),
+        _ => Err(PasmError::InvalidOperand),
     }
-
-    Ok(())
 }

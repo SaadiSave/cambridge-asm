@@ -4,6 +4,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use crate::{exec::PasmError, inst};
+use std::fmt::Debug;
 use std::io::Read;
 
 inst!(end {});
@@ -15,13 +16,13 @@ inst!(
         if x > 255 {
             return Err(PasmError::from(format!(
                 "The value in the ACC, `{}`, is not a valid UTF-8 byte.",
-                &x
+                x
             )));
         }
 
         let out = x as u8 as char;
 
-        print!("{}", &out);
+        print!("{}", out);
     }
 );
 
@@ -42,24 +43,16 @@ inst!(
     #[cfg(not(feature = "cambridge"))]
     dbg | ctx,
     op | {
-        let x = op.ok_or(PasmError::NoOperand)?;
-
-        let out = match x.as_str() {
-            "ix" | "IX" => ctx.ix,
-            "acc" | "ACC" => ctx.acc,
-            _ => {
-                if let Ok(s) = x.parse() {
-                    ctx.mem.get(&s)?
-                } else {
-                    return Err(PasmError::from(format!(
-                        "{} is not a register or a memory address",
-                        x
-                    )));
-                }
-            }
+        let out: Box<dyn Debug> = match op {
+            Op::Loc(x) => Box::new(ctx.mem.get(&x)?),
+            Op::Ix => Box::new(ctx.ix),
+            Op::Acc => Box::new(ctx.acc),
+            Op::Cmp => Box::new(ctx.cmp),
+            Op::None => Box::new(ctx),
+            _ => return Err(PasmError::InvalidOperand),
         };
 
-        println!("{}", out);
+        println!("{:?}", out);
     }
 );
 
@@ -79,6 +72,6 @@ inst!(
 
             ctx.acc = x
                 .parse()
-                .unwrap_or_else(|_| panic!("'{}' is not an integer", &x));
+                .unwrap_or_else(|_| panic!("'{}' is not an integer", x));
         }
 );

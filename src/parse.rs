@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::exec::{Cmd, Context, Executor, Func, MemEntry, Memory, Source};
+use crate::exec::{Context, Executor, Func, MemEntry, Memory, Source};
 use pest::{
     iterators::{Pair, Pairs},
     Parser,
@@ -17,11 +17,10 @@ use std::{collections::BTreeMap, path::Path};
 struct PasmParser;
 
 type Inst = (Option<String>, String, Option<String>);
-type FinInst = (usize, Cmd);
+type Ir = (usize, (Func, Option<String>));
 type Mem = (String, Option<String>);
 type InstSet = fn(&str) -> Result<Func, String>;
 
-#[must_use]
 pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
     let line_ending = { prog.contains("\r\n").then(|| "\r\n").unwrap_or("\n") };
 
@@ -81,7 +80,15 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
         prog.insert(i.0, ((i.1).0, (i.1).1));
     }
 
-    let exe = Executor::new(raw, Memory::new(prog), Context::new(Memory::new(mem), None));
+    let exe = Executor::new(
+        raw,
+        Memory::new(
+            prog.into_iter()
+                .map(|(idx, inst)| (idx, (inst.0, inst.1.unwrap_or("".into()).into())))
+                .collect(),
+        ),
+        Context::new(Memory::new(mem), None),
+    );
 
     info!("Executor created.");
     debug!("Executor {:#?}\n", &exe);
@@ -90,7 +97,6 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
     exe
 }
 
-#[must_use]
 pub fn from_file(path: &Path, inst_set: InstSet) -> Executor {
     let prog = std::fs::read_to_string(path).expect("Cannot read file");
 
@@ -197,7 +203,6 @@ inst_set! {
         "STO" => mov::sto,
 
         "CMP" => cmp::cmp,
-        "CMPM" => cmp::cmpm,
         "JPE" => cmp::jpe,
         "JPN" => cmp::jpn,
         "JMP" => cmp::jmp,
@@ -210,16 +215,11 @@ inst_set! {
         "INC" => arith::inc,
         "DEC" => arith::dec,
         "ADD" => arith::add,
-        "ADDM" => arith::addm,
         "SUB" => arith::sub,
-        "SUBM" => arith::subm,
 
         "AND" => bitman::and,
-        "ANDM" => bitman::andm,
         "OR" => bitman::or,
-        "ORM" => bitman::orm,
         "XOR" => bitman::xor,
-        "XORM" => bitman::xorm,
         "LSL" => bitman::lsl,
         "LSR" => bitman::lsr,
     }
@@ -252,7 +252,7 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
                     Rule::operand => out.2 = Some(i.as_str().into()),
                     _ => panic!(
                         "{} is not an address, label, op, or operand token",
-                        &i.as_str()
+                        i.as_str()
                     ),
                 }
             }
@@ -260,7 +260,7 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
         _ => panic!("Not an instruction"),
     }
 
-    if let Some(op) = out.2.clone() {
+    /*if let Some(op) = out.2.clone() {
         if op.contains('#') {
             let oper = out.1.as_str();
 
@@ -274,7 +274,7 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
                 _ => {}
             }
         }
-    }
+    }*/
 
     debug!(
         "{}\t{}\t{}",
@@ -297,7 +297,7 @@ fn get_insts(inst: Pairs<Rule>) -> Vec<Inst> {
     out
 }
 
-fn process_insts(insts: &[Inst], inst_set: fn(&str) -> Result<Func, String>) -> Vec<FinInst> {
+fn process_insts(insts: &[Inst], inst_set: fn(&str) -> Result<Func, String>) -> Vec<Ir> {
     let mut links = Vec::new();
 
     for (i, (addr, _, _)) in insts.iter().enumerate() {
@@ -308,7 +308,7 @@ fn process_insts(insts: &[Inst], inst_set: fn(&str) -> Result<Func, String>) -> 
         }
     }
 
-    debug!("Detected links within program:\n{:?}\n", &links);
+    debug!("Detected links within program:\n{:?}\n", links);
 
     let mut ir = Vec::new();
 
@@ -350,7 +350,7 @@ fn get_mem(mem: Pair<Rule>) -> Mem {
                         }
                     }
                     Rule::data => out.1 = Some(i.as_str().into()),
-                    _ => panic!("{} is not an address, label or data", &i.as_str()),
+                    _ => panic!("{} is not an address, label or data", i.as_str()),
                 }
             }
         }
@@ -377,7 +377,7 @@ fn get_mems(mem: Pairs<Rule>) -> Vec<Mem> {
     out
 }
 
-fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, MemEntry)> {
+fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
     let mut links = Vec::new();
 
     for (i, (addr, _)) in mems.iter().enumerate() {
@@ -388,38 +388,23 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, MemEntry)>
         }
     }
 
-    debug!("Detected links between program and memory:\n{:?}\n", &links);
+    debug!("Detected links between program and memory:\n{:?}\n", links);
 
     // linking
     for i in links {
         (prog[i.1].1).1 = Some(i.0.to_string());
     }
 
-    // Literal parsing
+    /*// Literal parsing
     for i in prog.clone().iter().enumerate() {
         let mut finop = (i.1.clone().1).1;
 
-        if let Some(mut op) = (i.1.clone().1).1 {
-            if op.contains('#') {
-                op.remove(0);
-
-                finop = match op.chars().next().unwrap() {
-                    'b' | 'B' => {
-                        op.remove(0);
-                        Some(usize::from_str_radix(&op, 2).unwrap().to_string())
-                    }
-                    'x' | 'X' => {
-                        op.remove(0);
-                        Some(usize::from_str_radix(&op, 16).unwrap().to_string())
-                    }
-                    '0'..='9' => Some(op.parse::<usize>().unwrap().to_string()),
-                    _ => panic!("{} is an invalid operand", &op),
-                }
-            }
+        if let Some(op) = (i.1.clone().1).1 {
+            finop = Some(get_literal(op));
         }
 
         (prog[i.0].1).1 = finop;
-    }
+    }*/
 
     let mut memlinks = Vec::new();
 
@@ -433,7 +418,7 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, MemEntry)>
         }
     }
 
-    debug!("Detected links within memory:\n{:?}\n", &memlinks);
+    debug!("Detected links within memory:\n{:?}\n", memlinks);
 
     let mut ir = Vec::new();
 
@@ -462,28 +447,57 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<FinInst>) -> Vec<(usize, MemEntry)>
     out
 }
 
+pub fn get_literal(mut op: String) -> String {
+    if op.contains('#') {
+        op.remove(0);
+
+        match op.chars().next().unwrap() {
+            'b' | 'B' => {
+                op.remove(0);
+                usize::from_str_radix(&op, 2).unwrap()
+            }
+            'x' | 'X' => {
+                op.remove(0);
+                usize::from_str_radix(&op, 16).unwrap()
+            }
+            '0'..='9' => op.parse::<usize>().unwrap(),
+            _ => unreachable!(),
+        }
+        .to_string()
+    } else {
+        op
+    }
+}
+
 #[cfg(test)]
-#[cfg(not(feature = "cambridge"))]
-#[test]
-fn parse_test() {
-    use std::path::PathBuf;
+mod parse_tests {
+    use crate::parse::parse;
+    use std::time::Instant;
 
-    let mut t = std::time::Instant::now();
+    #[cfg(feature = "cambridge")]
+    const PROGRAMS: [(&str, usize); 1] = [(include_str!("../examples/ex3.pasm"), 207)];
 
-    let mut exec = from_file(&PathBuf::from("examples/ex1.pasm"), get_fn_ext);
-    exec.exec();
-    println!("{:?}", t.elapsed());
-    assert_eq!(exec.ctx.acc, 65);
+    #[cfg(not(feature = "cambridge"))]
+    const PROGRAMS: [(&str, usize); 3] = [
+        (include_str!("../examples/ex1.pasm"), 65),
+        (include_str!("../examples/ex2.pasm"), 15625),
+        (include_str!("../examples/ex3.pasm"), 207),
+    ];
 
-    t = std::time::Instant::now();
-    exec = from_file(&PathBuf::from("examples/ex2.pasm"), get_fn_ext);
-    exec.exec();
-    println!("{:?}", t.elapsed());
-    assert_eq!(exec.ctx.acc, 15625);
+    #[test]
+    fn test() {
+        #[cfg(feature = "cambridge")]
+        let parser = |prog: &str| parse(prog, crate::parse::get_fn);
 
-    t = std::time::Instant::now();
-    exec = from_file(&PathBuf::from("examples/ex3.pasm"), get_fn_ext);
-    exec.exec();
-    println!("{:?}", t.elapsed());
-    assert_eq!(exec.ctx.acc, 207);
+        #[cfg(not(feature = "cambridge"))]
+        let parser = |prog: &str| parse(prog, crate::parse::get_fn_ext);
+
+        for (prog, acc) in PROGRAMS {
+            let t = Instant::now();
+            let mut exec = parser(prog);
+            exec.exec();
+            assert_eq!(exec.ctx.acc, acc);
+            dbg!(t.elapsed());
+        }
+    }
 }

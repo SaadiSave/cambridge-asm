@@ -6,89 +6,63 @@
 use super::{Context, Op, PasmError, PasmResult};
 
 pub fn and(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
-
-    ctx.acc &= ctx.mem.get(&x)?;
-
-    Ok(())
-}
-
-pub fn andm(ctx: &mut Context, op: Op) -> PasmResult {
-    let x: usize = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidLiteral)?;
-
-    ctx.acc &= x;
+    match op {
+        Op::Loc(x) => ctx.acc &= ctx.mem.get(&x)?,
+        Op::Literal(x) => ctx.acc &= x,
+        Op::None => return Err(PasmError::NoOperand),
+        _ => return Err(PasmError::InvalidOperand),
+    }
 
     Ok(())
 }
 
 pub fn or(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
-
-    ctx.acc |= ctx.mem.get(&x)?;
-
-    Ok(())
-}
-
-pub fn orm(ctx: &mut Context, op: Op) -> PasmResult {
-    let x: usize = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidLiteral)?;
-
-    ctx.acc |= x;
+    match op {
+        Op::Loc(x) => ctx.acc |= ctx.mem.get(&x)?,
+        Op::Literal(x) => ctx.acc |= x,
+        Op::None => return Err(PasmError::NoOperand),
+        _ => return Err(PasmError::InvalidOperand),
+    }
 
     Ok(())
 }
 
 pub fn xor(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
-
-    ctx.acc ^= ctx.mem.get(&x)?;
-
-    Ok(())
-}
-
-pub fn xorm(ctx: &mut Context, op: Op) -> PasmResult {
-    let x: usize = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidLiteral)?;
-
-    ctx.acc ^= x;
+    match op {
+        Op::Loc(x) => ctx.acc ^= ctx.mem.get(&x)?,
+        Op::Literal(x) => ctx.acc ^= x,
+        Op::None => return Err(PasmError::NoOperand),
+        _ => return Err(PasmError::InvalidOperand),
+    }
 
     Ok(())
 }
 
 pub fn lsl(ctx: &mut Context, op: Op) -> PasmResult {
-    let x: usize = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidLiteral)?;
+    match op {
+        Op::Literal(x) => {
+            if let Some(res) = ctx.acc.checked_shl(x as u32) {
+                ctx.acc = res;
+            } else {
+                warn!("Shift left overflow detected at line {}", ctx.mar + 1);
+                ctx.acc <<= x;
+            }
 
-    ctx.acc <<= x;
-
-    Ok(())
+            Ok(())
+        }
+        Op::None => Err(PasmError::NoOperand),
+        _ => Err(PasmError::InvalidOperand),
+    }
 }
 
 pub fn lsr(ctx: &mut Context, op: Op) -> PasmResult {
-    let x: usize = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidLiteral)?;
+    match op {
+        Op::Literal(x) => {
+            ctx.acc >>= x;
 
-    ctx.acc >>= x;
-
-    Ok(())
+            Ok(())
+        }
+        Op::None => Err(PasmError::NoOperand),
+        _ => Err(PasmError::InvalidOperand),
+    }
 }

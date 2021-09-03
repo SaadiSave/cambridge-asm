@@ -6,88 +6,99 @@
 use super::{Context, Op, PasmError, PasmResult};
 
 pub fn ldm(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidLiteral)?;
-
-    ctx.acc = x;
-
-    Ok(())
+    match op {
+        Op::Literal(x) => {
+            ctx.acc = x;
+            Ok(())
+        }
+        Op::None => Err(PasmError::NoOperand),
+        _ => Err(PasmError::InvalidLiteral),
+    }
 }
 
 pub fn ldd(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
-
-    ctx.acc = ctx.mem.get(&x)?;
-
-    Ok(())
+    match op {
+        Op::Loc(x) => {
+            ctx.acc = ctx.mem.get(&x)?;
+            Ok(())
+        }
+        Op::None => Err(PasmError::NoOperand),
+        _ => Err(PasmError::InvalidOperand),
+    }
 }
 
 pub fn ldi(ctx: &mut Context, op: Op) -> PasmResult {
-    let mut x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
+    match op {
+        Op::Loc(mut x) => {
+            x = ctx.mem.get_address(&x)?;
 
-    x = ctx.mem.get_address(&x)?;
+            ctx.acc = ctx
+                .mem
+                .get(&x)
+                .map_err(|_| PasmError::InvalidIndirectAddress(x))?;
 
-    ctx.acc = ctx
-        .mem
-        .get(&x)
-        .map_err(|_| PasmError::InvalidIndirectAddress(x))?;
-
-    Ok(())
+            Ok(())
+        }
+        Op::None => Err(PasmError::NoOperand),
+        _ => Err(PasmError::InvalidOperand),
+    }
 }
 
 pub fn ldx(ctx: &mut Context, op: Op) -> PasmResult {
-    let mut x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
-    x += ctx.ix;
+    match op {
+        Op::Loc(mut x) => {
+            x += ctx.ix;
 
-    ctx.acc = ctx.mem.get(&x)?;
+            ctx.acc = ctx.mem.get(&x)?;
 
-    Ok(())
+            Ok(())
+        }
+        Op::None => Err(PasmError::NoOperand),
+        _ => Err(PasmError::InvalidOperand),
+    }
 }
 
 pub fn ldr(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidLiteral)?;
-
-    ctx.ix = x;
+    match op {
+        Op::Literal(x) => {
+            ctx.ix = x;
+        }
+        Op::Loc(x) => {
+            ctx.ix = ctx.mem.get(&x)?;
+        }
+        Op::None => return Err(PasmError::NoOperand),
+        _ => return Err(PasmError::InvalidOperand),
+    }
 
     Ok(())
 }
 
 pub fn mov(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op.ok_or(PasmError::NoOperand)?;
-
-    match x.as_str() {
-        "ix" | "IX" => ctx.ix = ctx.acc,
-        _ => {
-            return Err(PasmError::from(
-                "Only 'IX' is a valid operand for this instruction",
-            ))
-        }
+    match op {
+        Op::Ix => ctx.ix = ctx.acc,
+        Op::Loc(x) => ctx.mem.write(&x, ctx.ix)?,
+        Op::MultiOp(list) => match list[..] {
+            [Op::Loc(from), Op::Loc(to), ..] => {
+                let x = ctx.mem.get(&from)?;
+                ctx.mem.write(&to, x)?;
+            }
+            _ => return Err(PasmError::InvalidMultiOp),
+        },
+        Op::None => return Err(PasmError::NoOperand),
+        _ => return Err(PasmError::InvalidOperand),
     }
 
     Ok(())
 }
 
 pub fn sto(ctx: &mut Context, op: Op) -> PasmResult {
-    let x = op
-        .ok_or(PasmError::NoOperand)?
-        .parse()
-        .map_err(|_| PasmError::InvalidOperand)?;
+    match op {
+        Op::Loc(x) => {
+            ctx.mem.write(&x, ctx.acc)?;
 
-    ctx.mem.write(&x, ctx.acc)?;
-
-    Ok(())
+            Ok(())
+        }
+        Op::None => Err(PasmError::NoOperand),
+        _ => Err(PasmError::InvalidOperand),
+    }
 }
