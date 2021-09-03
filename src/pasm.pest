@@ -9,7 +9,8 @@ op = { alpha+ }
 data = { num+ }
 // idata = { hex+ | num+ }
 immediate = _{ "#" ~ ( num+ | ("b" | "B") ~ bin+ | ("x" | "X") ~ hex+ ) }
-operand = @{ immediate | address | !"//" ~ !"#" ~ unicode+ }
+oper = @{ immediate | address | !"//" ~ !"#" ~ !"," ~ unicode+ }
+operand = @{ oper ~ ( "," ~ oper )? }
 
 instruction = ${ ( address | label )? ~ space+? ~ op ~ space+? ~ operand? ~ space+? ~ comment? ~ NEWLINE }
 prog = ${ whitespace* ~ instruction+ ~ whitespace* }

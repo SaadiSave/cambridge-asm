@@ -1,7 +1,5 @@
-    LDD 200 // Unicode 🎊 works!
-    STO RES // CJK is supported.
-    STO 203
-환상선: LDD RES // Loop start ("Loop" in Korean)
+    MOV 200,RES // Multiple operators are supported too !
+환상선: LDD RES // Loop start ("Loop" in Korean [Unicode works 🎊!])
     INC ACC
     STO RES
     LDD 203

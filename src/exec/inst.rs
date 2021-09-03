@@ -24,10 +24,7 @@ impl Op {
     // }
 
     pub fn is_none(&self) -> bool {
-        match self {
-            Op::None => true,
-            _ => false,
-        }
+        matches!(self, Op::None)
     }
 }
 
@@ -41,7 +38,12 @@ impl ToString for Op {
             Cmp => "CMP".to_string(),
             Loc(x) | Literal(x) => format!("{}", x),
             Str(x) => x.clone(),
-            MultiOp(v) => format!("{:?}", v),
+            MultiOp(v) => {
+                format!(
+                    "{:?}",
+                    v.iter().map(ToString::to_string).collect::<Vec<_>>()
+                )
+            }
         }
     }
 }
@@ -180,7 +182,8 @@ mod tests {
         ];
 
         for (op, res) in ops {
-            assert_eq!(Op::from(op), res);
+            let x = Op::from(op);
+            assert_eq!(x, res);
         }
     }
 }

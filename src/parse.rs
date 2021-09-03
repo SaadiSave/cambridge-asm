@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::exec::{Context, Executor, Func, MemEntry, Memory, Source};
+use crate::exec::{Cmd, Context, Executor, Func, MemEntry, Memory, Op, Source};
 use pest::{
     iterators::{Pair, Pairs},
     Parser,
@@ -17,7 +17,7 @@ use std::{collections::BTreeMap, path::Path};
 struct PasmParser;
 
 type Inst = (Option<String>, String, Option<String>);
-type Ir = (usize, (Func, Option<String>));
+type Ir = (usize, Cmd);
 type Mem = (String, Option<String>);
 type InstSet = fn(&str) -> Result<Func, String>;
 
@@ -56,7 +56,7 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
     let insts = get_insts(pairs.0);
 
     debug!("Processing instructions into IR...");
-    let mut insts = process_insts(&insts, inst_set);
+    let mut insts = process_insts(insts, inst_set);
 
     debug!("Memory as detected:");
     debug!("Addr\tData");
@@ -80,15 +80,7 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
         prog.insert(i.0, ((i.1).0, (i.1).1));
     }
 
-    let exe = Executor::new(
-        raw,
-        Memory::new(
-            prog.into_iter()
-                .map(|(idx, inst)| (idx, (inst.0, inst.1.unwrap_or("".into()).into())))
-                .collect(),
-        ),
-        Context::new(Memory::new(mem), None),
-    );
+    let exe = Executor::new(raw, Memory::new(prog), Context::new(Memory::new(mem), None));
 
     info!("Executor created.");
     debug!("Executor {:#?}\n", &exe);
@@ -297,13 +289,47 @@ fn get_insts(inst: Pairs<Rule>) -> Vec<Inst> {
     out
 }
 
-fn process_insts(insts: &[Inst], inst_set: fn(&str) -> Result<Func, String>) -> Vec<Ir> {
+fn process_insts(insts: Vec<Inst>, inst_set: fn(&str) -> Result<Func, String>) -> Vec<Ir> {
     let mut links = Vec::new();
 
-    for (i, (addr, _, _)) in insts.iter().enumerate() {
-        for (j, (_, _, op)) in insts.iter().enumerate() {
-            if addr.is_some() && op.is_some() && addr == op {
-                links.push((i, j));
+    let inst_list: Vec<_> = insts
+        .into_iter()
+        .map(|(idx, oper, op)| (idx, oper, Op::from(op.unwrap_or_else(|| "".into()))))
+        .collect();
+
+    for (i, (addr, _, _)) in inst_list.iter().enumerate() {
+        for (j, (_, _, op)) in inst_list.iter().enumerate() {
+            if addr.is_some() {
+                match op {
+                    Op::Loc(x) => {
+                        if addr.as_ref().unwrap() == &x.to_string() {
+                            links.push((i, j));
+                        }
+                    }
+                    Op::Str(x) => {
+                        if addr.as_ref().unwrap() == x {
+                            links.push((i, j));
+                        }
+                    }
+                    Op::MultiOp(vec) => {
+                        for op in vec {
+                            match op {
+                                Op::Loc(x) => {
+                                    if addr.as_ref().unwrap() == &x.to_string() {
+                                        links.push((i, j));
+                                    }
+                                }
+                                Op::Str(x) => {
+                                    if addr.as_ref().unwrap() == x {
+                                        links.push((i, j));
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {}
+                }
             }
         }
     }
@@ -312,12 +338,17 @@ fn process_insts(insts: &[Inst], inst_set: fn(&str) -> Result<Func, String>) -> 
 
     let mut ir = Vec::new();
 
-    for (i, j) in insts.iter().enumerate() {
+    for (i, j) in inst_list.into_iter().enumerate() {
         ir.push((i, (j.1.clone(), j.2.clone())));
     }
 
-    for i in links {
-        (ir[i.1].1).1 = Some(i.0.to_string());
+    for i in links.clone() {
+        let multi = links.iter().filter(|&&el| el.1 == i.1);
+        if multi.clone().count() > 1 {
+            (ir[i.1].1).1 = Op::MultiOp(multi.map(|&el| Op::Loc(el.0)).collect());
+        } else {
+            (ir[i.1].1).1 = Op::Loc(i.0);
+        }
     }
 
     let mut out = Vec::new();
@@ -382,8 +413,35 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
 
     for (i, (addr, _)) in mems.iter().enumerate() {
         for (j, (_, (_, op))) in prog.iter().enumerate() {
-            if op.is_some() && addr.clone() == op.clone().unwrap() {
-                links.push((i, j));
+            match op {
+                Op::Loc(x) => {
+                    if addr == &x.to_string() {
+                        links.push((i, j));
+                    }
+                }
+                Op::Str(x) => {
+                    if addr == x {
+                        links.push((i, j));
+                    }
+                }
+                Op::MultiOp(vec) => {
+                    for op in vec {
+                        match op {
+                            Op::Loc(x) => {
+                                if addr == &x.to_string() {
+                                    links.push((i, j));
+                                }
+                            }
+                            Op::Str(x) => {
+                                if addr == x {
+                                    links.push((i, j));
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -391,8 +449,13 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
     debug!("Detected links between program and memory:\n{:?}\n", links);
 
     // linking
-    for i in links {
-        (prog[i.1].1).1 = Some(i.0.to_string());
+    for i in links.clone() {
+        let multi = links.iter().filter(|&&el| el.1 == i.1);
+        if multi.clone().count() > 1 {
+            (prog[i.1].1).1 = Op::MultiOp(multi.map(|&el| Op::Loc(el.0)).collect());
+        } else {
+            (prog[i.1].1).1 = Op::Loc(i.0);
+        }
     }
 
     /*// Literal parsing
