@@ -1,6 +1,6 @@
 [package]
 name = "cambridge-asm"
-version = "0.9.0"
+version = "0.10.0"
 authors = ["SaadiSave <https://github.com/SaadiSave>"]
 edition = "2018"
 license = "MPL-2.0"
