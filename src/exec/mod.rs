@@ -84,9 +84,9 @@ impl Debug for Context {
 }
 
 pub struct Executor {
-    source: Source,
-    prog: Memory<usize, Cmd>,
-    pub(crate) ctx: Context,
+    pub source: Source,
+    pub prog: Memory<usize, Cmd>,
+    pub ctx: Context,
     count: u64,
 }
 
@@ -183,12 +183,11 @@ fn exec() {
     mem.insert(203, 0.into());
     mem.insert(204, 75.into());
 
-    let mut exec = Executor {
-        source: "None".into(),
-        prog: Memory::new(prog),
-        ctx: Context::new(Memory::new(mem), None),
-        count: 0,
-    };
+    let mut exec = Executor::new(
+        "None",
+        Memory::new(prog),
+        Context::new(Memory::new(mem), None),
+    );
 
     exec.exec();
 

@@ -21,11 +21,15 @@ LDM #1
 LDM #14
 INC ACC
 DEC ACC
-LDD DIE
-ADD #19
+LDD NONE
+ADD #65
 OUT
 END
 
-NONE:"#;
-    cambridge_asm::parse::parse(PROG, get_instruction).exec();
+
+NONE:
+"#;
+    let mut e = cambridge_asm::parse::parse(PROG, get_instruction);
+    e.exec();
+    assert_eq!(e.ctx.acc, 65);
 }

@@ -9,6 +9,7 @@ use pest::{
     Parser,
 };
 use pest_derive::Parser;
+use regex::Regex;
 use std::ops::Deref;
 use std::{collections::BTreeMap, path::Path};
 
@@ -22,12 +23,12 @@ type Mem = (String, Option<String>);
 type InstSet = fn(&str) -> Result<Func, String>;
 
 pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
-    let line_ending = { prog.contains("\r\n").then(|| "\r\n").unwrap_or("\n") };
+    let line_ending = prog.contains("\r\n").then(|| r"\r\n").unwrap_or(r"\n");
+
+    let separator = Regex::new(&format!("{} *{} *", line_ending, line_ending)).unwrap();
 
     let vec: Vec<_> = {
-        let v: Vec<_> = prog
-            .split(&format!("{}{}", line_ending, line_ending))
-            .collect();
+        let v: Vec<_> = separator.split(&prog).collect();
 
         if v.len() < 2 {
             panic!("Unable to parse. Your input may not contain one line between the program and the memory.");
@@ -252,27 +253,11 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
         _ => panic!("Not an instruction"),
     }
 
-    /*if let Some(op) = out.2.clone() {
-        if op.contains('#') {
-            let oper = out.1.as_str();
-
-            match oper {
-                "ADD" => out.1 = "ADDM".into(),
-                "SUB" => out.1 = "SUBM".into(),
-                "AND" => out.1 = "ANDM".into(),
-                "OR" => out.1 = "ORM".into(),
-                "XOR" => out.1 = "XORM".into(),
-                "CMP" => out.1 = "CMPM".into(),
-                _ => {}
-            }
-        }
-    }*/
-
     debug!(
         "{}\t{}\t{}",
-        &out.0.clone().unwrap_or_else(|| String::from("None")),
-        &out.1,
-        &out.2.clone().unwrap_or_else(|| String::from("None"))
+        out.0.clone().unwrap_or_else(|| "".into()),
+        out.1,
+        out.2.clone().unwrap_or_else(|| "".into()),
     );
     out
 }
@@ -294,7 +279,7 @@ fn process_insts(insts: Vec<Inst>, inst_set: fn(&str) -> Result<Func, String>) -
 
     let inst_list: Vec<_> = insts
         .into_iter()
-        .map(|(idx, oper, op)| (idx, oper, Op::from(op.unwrap_or_else(|| "".into()))))
+        .map(|(idx, opcode, op)| (idx, opcode, Op::from(op.unwrap_or_else(|| "".into()))))
         .collect();
 
     for (i, (addr, _, _)) in inst_list.iter().enumerate() {
@@ -457,17 +442,6 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
             (prog[i.1].1).1 = Op::Loc(i.0);
         }
     }
-
-    /*// Literal parsing
-    for i in prog.clone().iter().enumerate() {
-        let mut finop = (i.1.clone().1).1;
-
-        if let Some(op) = (i.1.clone().1).1 {
-            finop = Some(get_literal(op));
-        }
-
-        (prog[i.0].1).1 = finop;
-    }*/
 
     let mut memlinks = Vec::new();
 

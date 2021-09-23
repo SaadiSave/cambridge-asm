@@ -7,6 +7,7 @@
     STO 203
     CMP 204
     JPN 환상선 // Jump to loop start if not equal
+    DBG
     LDD RES
     DBG ACC
     LDM #x3a // Load 58
