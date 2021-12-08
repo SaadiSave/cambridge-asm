@@ -12,7 +12,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    container: saadisave/cambridge-asm-ci
+    container: saadisave/cambridge-asm-ci:0.2.0
     environment: Release
 
     steps:
@@ -37,4 +37,4 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
       - name: Release
-        run: gh release create ${{ env.RELEASE_VERSION }} -t "cambridge-asm-${{ env.RELEASE_VERSION }}"
+        run: gh release create ${{ env.RELEASE_VERSION }} -t "cambridge-asm-${{ env.RELEASE_VERSION }}" *.zip *.sha256sum
