@@ -28,8 +28,11 @@ jobs:
       - name: Run tests
         run: cargo test --verbose && cargo test --all-features --verbose
 
+      - name: Fetch tags
+        run: git fetch --unshallow
+
       - name: Set release version
-        run: git fetch --tags && export RELEASE_VERSION=`git describe --tags --abbrev=0` && echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
+        run: export RELEASE_VERSION=`git describe --tags --abbrev=0` && echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
 
       - name: check env
         run: echo ${{ secrets.CARGO_API_TOKEN }} && echo ${{ secrets.GITHUB_TOKEN }} && echo ${{ env.RELEASE_VERSION }}
