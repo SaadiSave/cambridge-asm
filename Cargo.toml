@@ -2,10 +2,11 @@
 name = "cambridge-asm"
 version = "0.10.0"
 authors = ["SaadiSave <https://github.com/SaadiSave>"]
-edition = "2018"
+edition = "2021"
 license = "MPL-2.0"
 description = "Run pseudoassembly from Cambridge International syllabus 9618"
 repository = "https://github.com/SaadiSave/cambridge-asm"
+rust-version = "1.57"
 
 [[bin]]
 name = "casm"
@@ -24,3 +25,7 @@ regex = "1.5.4"
 [dependencies.clap]
 version = "2.33"
 features = ["yaml"]
+
+[profile.prod]
+inherits = "release"
+lto = true

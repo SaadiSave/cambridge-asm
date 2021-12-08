@@ -1,0 +1,35 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: saadisave/cambridge-asm-ci
+    environment: Release
+
+    steps:
+      - uses: actions/checkout@v2
+
+      #    - uses: actions-rs/toolchain@v1
+      #      with:
+      #        toolchain: stable
+
+      - name: Build
+        run: cargo build --verbose && cargo build --all-features --verbose
+
+      - name: Run tests
+        run: cargo test --verbose && cargo test --all-features --verbose
+
+      - name: Set release version
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+
+      - name: check env
+        run: echo ${{ secrets.CARGO_API_TOKEN }} && echo ${{ secrets.GITHUB_TOKEN }} && echo ${{ env.RELEASE_VERSION }}

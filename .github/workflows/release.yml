@@ -5,10 +5,14 @@ on:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+*'
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    container: saadisave/cambridge-asm-ci
     environment: Release
 
     steps:
@@ -16,10 +20,6 @@ jobs:
 
       - name: Set release version
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
 
       - name: Run tests
         run: cargo test && cargo test --all-features
@@ -30,47 +30,11 @@ jobs:
       - name: Release crate
         run: cargo publish
 
-      - name: Add targets
-        run: rustup target add x86_64-unknown-linux-musl x86_64-pc-windows-gnu
-
-      - name: Install MinGW
-        run: sudo apt-get install gcc-mingw-w64-x86-64
-
-      - name: Linux debug build
-        run: cargo build --target x86_64-unknown-linux-musl
-
-      - name: Linux build
-        run: cargo build --release --target x86_64-unknown-linux-musl
-      
-      - name: Windows build
-        run: cargo build --release --target x86_64-pc-windows-gnu
-
-      - name: Zipping linux-dbg
-        run: zip cambridge-asm-dbg-linux.zip target/x86_64-unknown-linux-musl/debug/casm LICENSE README.md
-      
-      - name: Zipping linux
-        run: zip cambridge-asm-amd64-linux.zip target/x86_64-unknown-linux-musl/release/casm LICENSE README.md
-      
-      - name: Zipping windows
-        run: zip cambridge-asm-x64-windows.zip target/x86_64-pc-windows-gnu/release/casm.exe LICENSE README.md
-
-      - name: Linux build subset-only
-        run: cargo build --features=cambridge --release --target x86_64-unknown-linux-musl
-      
-      - name: Windows build subset-only
-        run: cargo build --features=cambridge --release --target x86_64-pc-windows-gnu
-
-      - name: Zipping linux subset-only
-        run: zip cambridge-asm-amd64-caie-linux.zip target/x86_64-unknown-linux-musl/release/casm LICENSE README.md
-      
-      - name: Zipping windows subset-only
-        run: zip cambridge-asm-x64-caie-windows.zip target/x86_64-pc-windows-gnu/release/casm.exe LICENSE README.md
-
-      - name: Compute checksums
-        run: sha256sum cambridge-asm-amd64-linux.zip > cambridge-asm-amd64-linux.zip.sha256sum && sha256sum cambridge-asm-x64-windows.zip > cambridge-asm-x64-windows.zip.sha256sum.txt && sha256sum cambridge-asm-dbg-linux.zip > cambridge-asm-dbg-linux.zip.sha256sum && sha256sum cambridge-asm-amd64-caie-linux.zip > cambridge-asm-amd64-caie-linux.zip.sha256sum && sha256sum cambridge-asm-x64-caie-windows.zip > cambridge-asm-x64-caie-windows.zip.sha256sum.txt
+      - name: Build all
+        run: python3 .github/buildall.py
 
       - name: Login
         run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
       - name: Release
-        run: gh release create -t "cambridge-asm-${{ env.RELEASE_VERSION }}" ${{ env.RELEASE_VERSION }} cambridge-asm-dbg-linux.zip cambridge-asm-dbg-linux.zip.sha256sum cambridge-asm-amd64-linux.zip cambridge-asm-amd64-linux.zip.sha256sum cambridge-asm-x64-windows.zip cambridge-asm-x64-windows.zip.sha256sum.txt cambridge-asm-amd64-caie-linux.zip cambridge-asm-amd64-caie-linux.zip.sha256sum cambridge-asm-x64-caie-windows.zip cambridge-asm-x64-caie-windows.zip.sha256sum.txt
+        run: gh release create ${{ env.RELEASE_VERSION }} -t "cambridge-asm-${{ env.RELEASE_VERSION }}"
