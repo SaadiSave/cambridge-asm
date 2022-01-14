@@ -6,18 +6,31 @@
 #![warn(clippy::pedantic)]
 
 use cambridge_asm::parse;
-use clap::{load_yaml, App};
-use std::path::PathBuf;
+use clap::Parser;
+use std::{path::PathBuf, ffi::OsString};
+
+#[derive(Parser)]
+#[clap(name = "Cambridge Pseudoassembly Interpreter")]
+#[clap(version = "0.10.0")]
+#[clap(author = "Saadi Save <github.com/SaadiSave>")]
+#[clap(about = "Run pseudoassembly from Cambridge International syllabus 9618 (2021)")]
+struct Cli {
+    #[clap(help = "Path to the input file containing pseudoassembly")]
+    input: OsString,
+
+    #[clap(short = 'v', long = "verbose", parse(from_occurrences))]
+    #[clap(help = "Increase logging level")]
+    verbosity: usize,
+
+    #[clap(short = 't', long = "bench")]
+    #[clap(help = "Show execution time")]
+    bench: bool
+}
 
 fn main() {
-    let yaml = load_yaml!("cli.yml");
-    let opts = App::from_yaml(yaml).get_matches();
+    let parsed = Cli::parse();
 
-    let input = opts.value_of_os("INPUT").unwrap();
-
-    let verbosity = opts.occurrences_of("verbose");
-
-    set_log_level(verbosity);
+    set_log_level(parsed.verbosity);
 
     #[cfg(not(debug_assertions))]
     std::panic::set_hook(Box::new(handle_panic));
@@ -28,30 +41,33 @@ fn main() {
         .format_module_path(false)
         .init();
 
-    let mut x = opts.is_present("perf").then(std::time::Instant::now);
+    let mut x = parsed.bench.then(std::time::Instant::now);
 
-    let path = PathBuf::from(input);
+    let fpath = PathBuf::from(parsed.input);
 
     #[cfg(feature = "cambridge")]
-    let mut exec = parse::from_file(&path, parse::get_fn);
+    let mut exec = parse::from_file(&fpath, parse::get_fn);
 
     #[cfg(not(feature = "cambridge"))]
-    let mut exec = parse::from_file(&path, parse::get_fn_ext);
+    let mut exec = parse::from_file(&fpath, parse::get_fn_ext);
 
-    x.is_some().then(|| {
-        println!("Total parse time: {:?}", x.unwrap().elapsed());
+    if let Some(inst) = x {
+        println!("Total parse time: {:?}", inst.elapsed());
         x = Some(std::time::Instant::now());
-    });
+    }
 
-    (x.is_some() || verbosity > 0).then(|| println!("Execution starts on next line"));
+    if x.is_some() || parsed.verbosity > 0 {
+        println!("Execution starts on next line");
+    }
 
     exec.exec();
 
-    x.is_some()
-        .then(|| println!("Execution done\nExecution time: {:?}", x.unwrap().elapsed()));
+    if let Some(inst) = x {
+        println!("Execution done\nExecution time: {:?}", inst.elapsed());
+    }
 }
 
-fn set_log_level(v: u64) {
+fn set_log_level(v: usize) {
     use std::env;
     match v {
         0 => env::set_var("RUST_LOG", "off"),
@@ -75,6 +91,6 @@ fn handle_panic(info: &std::panic::PanicInfo) {
     }
 
     if let Some(msg) = info.payload().downcast_ref::<String>() {
-        println!("{}\n\nTo debug, try increasing the verbosity by passing -v flags if the error message is unclear.\nOpen an issue on github if the panic appears to be an internal error.", msg);
+        println!("{msg}\n\nTo debug, try increasing the verbosity by passing -v flags if the error message is unclear.\nOpen an issue on github if the panic appears to be an internal error.");
     }
 }

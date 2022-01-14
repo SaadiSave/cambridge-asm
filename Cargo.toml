@@ -21,10 +21,11 @@ pest_derive = "2.1"
 log = "0.4"
 env_logger = "0.9"
 regex = "1.5.4"
+proc-macro2 = "1.0.36"
 
 [dependencies.clap]
-version = "2.33"
-features = ["yaml"]
+version = "3.0"
+features = ["derive"]
 
 [profile.prod]
 inherits = "release"
