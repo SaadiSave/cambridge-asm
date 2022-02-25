@@ -1,4 +1,4 @@
-FROM rust:1.57-bullseye
+FROM rust:1.59-bullseye
 
 RUN apt update && apt install -y gcc-10-aarch64-linux-gnu gcc-10-riscv64-linux-gnu gcc-mingw-w64-x86-64 python3 zip
 

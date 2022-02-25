@@ -12,11 +12,8 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    container: 
-      image: ghcr.io/saadisave/cambridge-asm-ci:0.4.0
-      credentials:
-        username: saadisave
-        password: ${{ secrets.GITHUB_TOKEN }}
+    container:
+      image: ghcr.io/saadisave/cambridge-asm-ci:latest
     environment: Release
 
     steps:
