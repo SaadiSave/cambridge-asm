@@ -1,51 +1,12 @@
 use super::{PasmError, PasmResult};
+use std::collections::btree_map::Iter;
+use std::fmt::Display;
 use std::{
-    collections::btree_map::{BTreeMap, Iter},
+    collections::btree_map::BTreeMap,
     fmt::{Debug, Formatter, Result as FmtResult},
 };
 
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct Memory<K: Ord, V>(BTreeMap<K, V>);
-
-impl<K: Ord, V> Memory<K, V> {
-    pub fn new(data: BTreeMap<K, V>) -> Memory<K, V> {
-        Memory(data)
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    pub fn iter(&self) -> Iter<K, V> {
-        self.0.iter()
-    }
-}
-
-impl<K: Ord + Debug, V: Clone> Memory<K, V> {
-    pub fn get(&self, loc: &K) -> Result<V, PasmError> {
-        let x = self
-            .0
-            .get(loc)
-            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{:?}", loc)))?;
-        Ok(x.clone())
-    }
-
-    pub fn write(&mut self, loc: &K, dat: V) -> PasmResult {
-        let x = self
-            .0
-            .get_mut(loc)
-            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{:?}", loc)))?;
-        *x = dat;
-
-        Ok(())
-    }
-}
-
+#[derive(Debug, Default, PartialEq)]
 pub struct MemEntry {
     pub literal: usize,
     pub address: Option<usize>,
@@ -70,22 +31,34 @@ impl From<usize> for MemEntry {
     }
 }
 
-impl Debug for MemEntry {
+impl Display for MemEntry {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         if let Some(a) = self.address {
-            f.write_fmt(format_args!("{}, addr: {}", self.literal, a))
+            f.write_fmt(format_args!("{{ {}, addr: {a} }}", self.literal))
         } else {
             f.write_fmt(format_args!("{}", self.literal))
         }
     }
 }
 
-impl Memory<usize, MemEntry> {
+#[derive(Debug, Default)]
+#[repr(transparent)]
+pub struct Memory(BTreeMap<usize, MemEntry>);
+
+impl Memory {
+    pub fn new(mem: BTreeMap<usize, MemEntry>) -> Self {
+        Self(mem)
+    }
+
+    pub fn iter(&self) -> Iter<usize, MemEntry> {
+        self.0.iter()
+    }
+
     pub fn get(&self, loc: &usize) -> Result<usize, PasmError> {
         let x = self
             .0
             .get(loc)
-            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{:?}", loc)))?;
+            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{loc:?}")))?;
         Ok(x.literal)
     }
 
@@ -93,7 +66,7 @@ impl Memory<usize, MemEntry> {
         let x = self
             .0
             .get(loc)
-            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{:?}", loc)))?;
+            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{loc:?}")))?;
         Ok(x.as_address())
     }
 
@@ -101,7 +74,7 @@ impl Memory<usize, MemEntry> {
         let x = self
             .0
             .get_mut(loc)
-            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{:?}", loc)))?;
+            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{loc:?}")))?;
 
         if x.literal <= dat {
             let offset = dat - x.literal;

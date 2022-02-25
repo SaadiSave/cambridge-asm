@@ -4,9 +4,11 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 #![warn(clippy::pedantic)]
-#![allow(clippy::missing_errors_doc)]
-#![allow(clippy::missing_panics_doc)]
-#![allow(clippy::must_use_candidate)]
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate
+)]
 
 #[macro_use]
 extern crate log;

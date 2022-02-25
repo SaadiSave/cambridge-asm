@@ -7,24 +7,22 @@ address = { num+ }
 label = @{ ( !":" ~ unicode )+ ~ ":" }
 op = { alpha+ }
 data = { num+ }
-// idata = { hex+ | num+ }
 immediate = _{ "#" ~ ( num+ | ("b" | "B") ~ bin+ | ("x" | "X") ~ hex+ ) }
-oper = @{ immediate | address | !"//" ~ !"#" ~ !"," ~ unicode+ }
-operand = @{ oper ~ ( "," ~ oper )? }
-
-instruction = ${ ( address | label )? ~ space+? ~ op ~ space+? ~ operand? ~ space+? ~ comment? ~ NEWLINE }
-prog = ${ whitespace* ~ instruction+ ~ whitespace* }
-
-memoryentry = ${ ( address | label ) ~ space+? ~ data? ~ space+? ~ comment? ~ NEWLINE }
-memory = ${ whitespace* ~ memoryentry+ ~ whitespace* }
+oper = @{ immediate | address | "r" ~ num{1, 2} | !"//" ~ !"#" ~ !"," ~ unicode+ }
+operand = @{ oper ~ ( "," ~ oper )* }
 
 comment = _{ "//" ~ space* ~ ( unicode+ ~ space* )* ~ space* }
+
+instruction = ${ (whitespace* ~ comment ~ whitespace*)* ~ ( address | label )? ~ space* ~ op ~ space* ~ operand? ~ space* ~ comment? ~ NEWLINE }
+prog = ${ whitespace* ~ instruction+ ~ whitespace* }
+
+memory_entry = ${ (comment ~ whitespace*)* ~ ( address | label ) ~ space* ~ data? ~ space* ~ comment? ~ NEWLINE }
+memory = ${ whitespace* ~ memory_entry+ ~ whitespace* }
 
 space = _{ " " | "\t" }
 whitespace = _{ space | NEWLINE }
 num = _{ ASCII_DIGIT }
 alpha = _{ ASCII_ALPHA }
-// alphanum = _{ ASCII_ALPHANUMERIC }
 hex = _{ ASCII_HEX_DIGIT }
 bin = _{ ASCII_BIN_DIGIT }
 unicode = _{ !space ~ !NEWLINE ~ ANY }

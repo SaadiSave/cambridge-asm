@@ -5,7 +5,7 @@ inst! {
     custom | ctx | override { println!("This is a custom instruction"); ctx.mar += 1; }
 }
 
-extension! {
+extend! {
     get_instruction extends cambridge_asm::parse::get_fn; {
         "CUSTOM" => custom,
     }

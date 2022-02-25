@@ -9,12 +9,14 @@ use std::{
 #[derive(Debug)]
 pub enum PasmError {
     Str(String),
-    InvalidUtf8Byte(u8),
+    InvalidUtf8Byte(usize),
     InvalidLiteral,
     InvalidOperand,
+    NoOpInst,
     NoOperand,
     InvalidMemoryLoc(String),
     InvalidIndirectAddress(usize),
+    InvalidIndexedAddress(usize),
     InvalidMultiOp,
 }
 
@@ -24,12 +26,13 @@ impl Display for PasmError {
 
         match self {
             Str(s) => f.write_str(s),
-            InvalidUtf8Byte(b) => f.write_fmt(format_args!("The value in the ACC, `{}`, is not a valid UTF-8 byte.", b)),
+            InvalidUtf8Byte(b) => f.write_fmt(format_args!("#x{b:X} is not a valid UTF-8 byte.")),
             InvalidLiteral => f.write_str("Operand is not a decimal, hexadecimal, or binary number."),
             InvalidOperand => f.write_str("Operand is not a memory location, register, or literal. If you wanted to use a label, please double-check the label."),
             NoOperand => f.write_str("Operand missing."),
-            InvalidMemoryLoc(l) => f.write_fmt(format_args!("Memory location `{}` does not exist.", l)),
-            InvalidIndirectAddress(v) => f.write_fmt(format_args!("The value at the memory location, '{}', is not a valid memory location. If you wanted to use a label, please double-check the label.", v)),
+            NoOpInst => f.write_str("Instruction takes no operand."),
+            InvalidMemoryLoc(l) => f.write_fmt(format_args!("Memory location `{l}` does not exist.")),
+            InvalidIndirectAddress(v) | InvalidIndexedAddress(v) => f.write_fmt(format_args!("The value at the memory location, '{v}', is not a valid memory location. If you wanted to use a label, please double-check the label.")),
             InvalidMultiOp => f.write_str("Operand sequence is invalid"),
         }
     }
@@ -45,39 +48,36 @@ impl<T: Deref<Target = str>> From<T> for PasmError {
 
 pub type PasmResult = Result<(), PasmError>;
 
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct Source(Vec<String>);
 
 impl Source {
     pub fn handle_err(&self, err: &PasmError, pos: usize) {
+        let mk_line =
+            |inst: &str, num: usize| format!("\n{num:>w$}    {inst}", w = self.whitespace());
+
         let mut out = String::new();
         out.push_str("Runtime Error:\n");
 
         for (i, s) in self.0.iter().enumerate() {
             if pos == i {
                 if let Some(prev) = self.0.get(i - 1) {
-                    out.push_str(&format!(
-                        "\n{num:>w$}    {}",
-                        prev,
-                        num = i,
-                        w = self.whitespace()
-                    ));
+                    out.push_str(&mk_line(prev, i));
                 }
                 out.push_str(&format!(
-                    "\n{num:>w$}    {} <-",
-                    s,
+                    "\n{num:>w$}    {s} <-",
                     num = i + 1,
                     w = self.whitespace()
                 ));
                 if let Some(next) = self.0.get(i + 1) {
                     out.push_str(&format!(
-                        "\n{num:>w$}    {}",
-                        next,
+                        "\n{num:>w$}    {next}",
                         num = i + 2,
                         w = self.whitespace()
                     ));
                 }
-                out.push_str(&format!("\n\nmessage: {}", err));
+                out.push_str(&format!("\n\nmessage: {err}"));
                 break;
             }
         }
@@ -91,18 +91,22 @@ impl Source {
 
 impl<T: Deref<Target = str>> From<T> for Source {
     fn from(s: T) -> Self {
-        Source(s.to_string().lines().map(String::from).collect())
+        Source(
+            s.to_string()
+                .lines()
+                .filter(|&el| !el.starts_with("//"))
+                .map(String::from)
+                .collect(),
+        )
     }
 }
 
-impl Debug for Source {
+impl Display for Source {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str("Program {\n")?;
-
         for inst in &self.0 {
-            f.write_fmt(format_args!("\t{}\n", inst))?;
+            f.write_fmt(format_args!("    {inst}\n"))?;
         }
 
-        f.write_str("}\n")
+        f.write_str("")
     }
 }

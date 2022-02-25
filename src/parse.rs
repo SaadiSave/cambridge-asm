@@ -3,36 +3,80 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::exec::{Cmd, Context, Executor, Func, MemEntry, Memory, Op, Source};
+use crate::exec::{Context, Executor, Inst, MemEntry, Memory, Op, OpFun, Source};
 use pest::{
     iterators::{Pair, Pairs},
     Parser,
 };
 use pest_derive::Parser;
 use regex::Regex;
-use std::ops::Deref;
-use std::{collections::BTreeMap, path::Path};
+use std::{collections::BTreeMap, ops::Deref, path::Path};
 
 #[derive(Parser)]
 #[grammar = "pasm.pest"]
 struct PasmParser;
 
-type Inst = (Option<String>, String, Option<String>);
-type Ir = (usize, Cmd);
-type Mem = (String, Option<String>);
-type InstSet = fn(&str) -> Result<Func, String>;
+pub type InstSet = fn(&str) -> Result<OpFun, String>;
+
+struct Mem {
+    pub addr: String,
+    pub data: Option<String>,
+}
+
+impl Mem {
+    pub fn new(addr: String, data: Option<String>) -> Mem {
+        Mem { addr, data }
+    }
+}
+
+struct Ir {
+    pub addr: usize,
+    pub inst: Inst,
+}
+
+impl Ir {
+    pub fn new(addr: usize, inst: Inst) -> Ir {
+        Ir { addr, inst }
+    }
+}
+
+struct StrInst {
+    pub addr: Option<String>,
+    pub opcode: String,
+    pub op: Option<String>,
+}
+
+impl StrInst {
+    pub fn new(addr: Option<String>, opcode: String, op: Option<String>) -> StrInst {
+        StrInst { addr, opcode, op }
+    }
+}
 
 pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
-    let line_ending = prog.contains("\r\n").then(|| r"\r\n").unwrap_or(r"\n");
+    let mut line_ending = if prog.contains("\r\n") {
+        // Windows
+        r"\r\n"
+    } else if prog.contains('\r') {
+        // For old Macs
+        r"\r"
+    } else {
+        // UNIX
+        r"\n"
+    };
 
-    let separator = Regex::new(&format!("{} *{} *", line_ending, line_ending)).unwrap();
+    let separator = Regex::new(&format!("{line_ending} *{line_ending} *")).unwrap();
 
-    let vec: Vec<_> = {
+    line_ending = match line_ending {
+        r"\r\n" => "\r\n",
+        r"\n" => "\n",
+        r"\r" => "\r",
+        _ => unreachable!(),
+    };
+
+    let mut vec: Vec<_> = {
         let v: Vec<_> = separator.split(&prog).collect();
 
-        if v.len() < 2 {
-            panic!("Unable to parse. Your input may not contain one line between the program and the memory.");
-        }
+        assert!((v.len() >= 2), "Unable to parse. Your input may not contain blank line(s) between the program and the memory.");
 
         v.iter()
             .map(|&s| {
@@ -43,17 +87,20 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
             .collect()
     };
 
-    let raw = Source::from(vec[0].as_str());
-    debug!("This is your program:\n{:?}", &raw);
+    let mem = vec.pop().unwrap();
+    let prog = vec.join("");
+
+    let src = Source::from(&*prog);
+    debug!("This is your program code:\n{}", src);
 
     let pairs = (
-        PasmParser::parse(Rule::prog, &vec[0]).unwrap(),
-        PasmParser::parse(Rule::memory, &vec[1]).unwrap(),
+        PasmParser::parse(Rule::prog, &prog).unwrap(),
+        PasmParser::parse(Rule::memory, &mem).unwrap(),
     );
 
     debug!("Instructions as detected:");
     debug!("Addr\tOpcode\tOp");
-    debug!("-------\t-------\t-------");
+    debug!("{:-<7}\t{:-<7}\t{:-<7}", "-", "-", "-");
     let insts = get_insts(pairs.0);
 
     debug!("Processing instructions into IR...");
@@ -61,7 +108,7 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
 
     debug!("Memory as detected:");
     debug!("Addr\tData");
-    debug!("-------\t-------");
+    debug!("{:-<7}\t{:-<7}", "-", "-");
     let mems = get_mems(pairs.1);
 
     debug!("Processing memory into IR...");
@@ -69,23 +116,18 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
 
     info!("Parsing complete. Creating executor...");
 
-    let mut mem = BTreeMap::new();
+    let mem = BTreeMap::from_iter(mems);
 
-    for i in mems {
-        mem.insert(i.0, i.1);
-    }
+    let prog = insts
+        .into_iter()
+        .map(|Ir { addr, inst }| (addr, inst))
+        .collect::<BTreeMap<_, _>>();
 
-    let mut prog = BTreeMap::new();
+    let exe = Executor::new(src, prog, Context::new(Memory::new(mem)));
 
-    for i in insts {
-        prog.insert(i.0, ((i.1).0, (i.1).1));
-    }
-
-    let exe = Executor::new(raw, Memory::new(prog), Context::new(Memory::new(mem), None));
-
-    info!("Executor created.");
-    debug!("Executor {:#?}\n", &exe);
-    debug!("The initial context:\n{:#?}\n", &exe.ctx);
+    info!("Executor created");
+    debug!("{}\n", exe);
+    debug!("The initial context:\n{}\n", exe.ctx);
 
     exe
 }
@@ -103,39 +145,39 @@ pub fn from_file(path: &Path, inst_set: InstSet) -> Executor {
 macro_rules! inst_set {
     ($(#[$outer:meta])* $vis:vis $name:ident { $( $inst:pat => $func:expr ),+ $(,)? }) => {
         $(#[$outer])*
-        $vis fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+        $vis fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
             Ok(match op {
                 $( $inst => $func,)+
-                _ => return Err(format!("{} is not an operation", op)),
+                _ => return Err(format!("{op} is not an operation")),
             })
         }
     };
     ($(#[$outer:meta])* $vis:vis $name:ident $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
         $(#[$outer])*
-        $vis fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+        $vis fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
             $using
             Ok(match op {
                 $( $inst => $func,)+
-                _ => return Err(format!("{} is not an operation", op)),
+                _ => return Err(format!("{op} is not an operation")),
             })
         }
     };
     ($(#[$outer:meta])* $name:ident { $( $inst:pat => $func:expr ),+ $(,)? }) => {
         $(#[$outer])*
-        fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+        fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
             Ok(match op {
                 $( $inst => $func,)+
-                _ => return Err(format!("{} is not an operation", op)),
+                _ => return Err(format!("{op} is not an operation")),
             })
         }
     };
     ($(#[$outer:meta])* $name:ident $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
         $(#[$outer])*
-        fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+        fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
             $using
             Ok(match op {
                 $( $inst => $func,)+
-                _ => return Err(format!("{} is not an operation", op)),
+                _ => return Err(format!("{op} is not an operation")),
             })
         }
     };
@@ -143,10 +185,10 @@ macro_rules! inst_set {
 
 /// Macro to extend any base instruction set
 #[macro_export]
-macro_rules! extension {
+macro_rules! extend {
     ($(#[$outer:meta])* $vis:vis $name:ident extends $root:expr; { $( $inst:pat => $func:expr ),+ $(,)? }) => {
         $(#[$outer])*
-        $vis fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+        $vis fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
             Ok(match op {
                 $( $inst => $func,)+
                 _ => $root(op)?,
@@ -155,7 +197,7 @@ macro_rules! extension {
     };
     ($(#[$outer:meta])* $vis:vis $name:ident extends $root:expr, $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
         $(#[$outer])*
-        $vis fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+        $vis fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
             $using
             Ok(match op {
                 $( $inst => $func,)+
@@ -165,7 +207,7 @@ macro_rules! extension {
     };
     ($(#[$outer:meta])* $name:ident extends $root:expr; { $( $inst:pat => $func:expr ),+ $(,)? }) => {
         $(#[$outer])*
-        fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+        fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
             Ok(match op {
                 $( $inst => $func,)+
                 _ => $root(op)?,
@@ -174,7 +216,7 @@ macro_rules! extension {
     };
     ($(#[$outer:meta])* $name:ident extends $root:expr, $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
         $(#[$outer])*
-        fn $name(op: &str) -> Result<$crate::exec::Func, String> {
+        fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
             $using
             Ok(match op {
                 $( $inst => $func,)+
@@ -218,31 +260,34 @@ inst_set! {
     }
 }
 
-extension! {
+extend! {
     // Extended instruction set
     #[cfg(not(feature = "cambridge"))]
     pub get_fn_ext extends get_fn, use crate::exec::io; {
         "DBG" => io::dbg,
         "RIN" => io::rin,
+        "CALL" => io::call,
+        "RET" => io::ret,
+        "NOP" => io::nop,
     }
 }
 
-fn get_inst(inst: Pair<Rule>) -> Inst {
-    let mut out: (Option<String>, String, Option<String>) = (None, "".into(), None);
+fn get_inst(inst: Pair<Rule>) -> StrInst {
+    let mut out = StrInst::new(None, "".into(), None);
     match inst.as_rule() {
         Rule::instruction => {
             let x = inst.into_inner();
             for i in x {
                 match i.as_rule() {
-                    Rule::address => out.0 = Some(i.as_str().into()),
+                    Rule::address => out.addr = Some(i.as_str().into()),
                     Rule::label => {
-                        out.0 = {
+                        out.addr = {
                             let x = i.as_str().to_string();
-                            Some(x.replace(":", ""))
+                            Some(x.replace(':', ""))
                         }
                     }
-                    Rule::op => out.1 = i.as_str().into(),
-                    Rule::operand => out.2 = Some(i.as_str().into()),
+                    Rule::op => out.opcode = i.as_str().into(),
+                    Rule::operand => out.op = Some(i.as_str().into()),
                     _ => panic!(
                         "{} is not an address, label, op, or operand token",
                         i.as_str()
@@ -254,15 +299,15 @@ fn get_inst(inst: Pair<Rule>) -> Inst {
     }
 
     debug!(
-        "{}\t{}\t{}",
-        out.0.clone().unwrap_or_else(|| "".into()),
-        out.1,
-        out.2.clone().unwrap_or_else(|| "".into()),
+        "{:>4}\t{:>4}\t{:<4}",
+        out.addr.clone().unwrap_or_else(|| "".into()),
+        out.opcode,
+        out.op.clone().unwrap_or_else(|| "".into()),
     );
     out
 }
 
-fn get_insts(inst: Pairs<Rule>) -> Vec<Inst> {
+fn get_insts(inst: Pairs<Rule>) -> Vec<StrInst> {
     let mut out = Vec::new();
 
     for pair in inst {
@@ -274,12 +319,18 @@ fn get_insts(inst: Pairs<Rule>) -> Vec<Inst> {
     out
 }
 
-fn process_insts(insts: Vec<Inst>, inst_set: fn(&str) -> Result<Func, String>) -> Vec<Ir> {
+fn process_insts(insts: Vec<StrInst>, inst_set: fn(&str) -> Result<OpFun, String>) -> Vec<Ir> {
     let mut links = Vec::new();
 
     let inst_list: Vec<_> = insts
         .into_iter()
-        .map(|(idx, opcode, op)| (idx, opcode, Op::from(op.unwrap_or_else(|| "".into()))))
+        .map(|StrInst { addr, opcode, op }| {
+            (
+                addr,
+                opcode,
+                Op::from(op.map_or_else(|| "".into(), |s| s.trim().to_string())),
+            )
+        })
         .collect();
 
     for (i, (addr, _, _)) in inst_list.iter().enumerate() {
@@ -288,25 +339,25 @@ fn process_insts(insts: Vec<Inst>, inst_set: fn(&str) -> Result<Func, String>) -
                 match op {
                     Op::Loc(x) => {
                         if addr.as_ref().unwrap() == &x.to_string() {
-                            links.push((i, j));
+                            links.push((i, j, None));
                         }
                     }
-                    Op::Str(x) => {
+                    Op::Fail(x) => {
                         if addr.as_ref().unwrap() == x {
-                            links.push((i, j));
+                            links.push((i, j, None));
                         }
                     }
                     Op::MultiOp(vec) => {
-                        for op in vec {
+                        for (idx, op) in vec.iter().enumerate() {
                             match op {
                                 Op::Loc(x) => {
                                     if addr.as_ref().unwrap() == &x.to_string() {
-                                        links.push((i, j));
+                                        links.push((i, j, Some(idx)));
                                     }
                                 }
-                                Op::Str(x) => {
+                                Op::Fail(x) => {
                                     if addr.as_ref().unwrap() == x {
-                                        links.push((i, j));
+                                        links.push((i, j, Some(idx)));
                                     }
                                 }
                                 _ => {}
@@ -321,51 +372,52 @@ fn process_insts(insts: Vec<Inst>, inst_set: fn(&str) -> Result<Func, String>) -
 
     debug!("Detected links within program:\n{:?}\n", links);
 
-    let mut ir = Vec::new();
-
-    for (i, j) in inst_list.into_iter().enumerate() {
-        ir.push((i, (j.1.clone(), j.2.clone())));
-    }
+    let mut ir = inst_list
+        .into_iter()
+        .enumerate()
+        .map(|(i, j)| (i, (j.1, j.2)))
+        .collect::<Vec<_>>();
 
     for i in links.clone() {
-        let multi = links.iter().filter(|&&el| el.1 == i.1);
-        if multi.clone().count() > 1 {
-            (ir[i.1].1).1 = Op::MultiOp(multi.map(|&el| Op::Loc(el.0)).collect());
-        } else {
-            (ir[i.1].1).1 = Op::Loc(i.0);
-        }
+        match &ir[i.1].1 .1 {
+            Op::MultiOp(ops) => {
+                let mut ops = ops.clone();
+                ops[i.2.unwrap()] = Op::Loc(i.0);
+                ir[i.1].1 .1 = Op::MultiOp(ops);
+            }
+            Op::Loc(_) | Op::Fail(_) => ir[i.1].1 .1 = Op::Loc(i.0),
+            _ => {}
+        };
     }
 
-    let mut out = Vec::new();
-
-    for i in ir {
-        out.push((
-            i.0,
-            (
-                inst_set(&(i.1).0.to_uppercase()).unwrap_or_else(|s| panic!("{}", s)),
-                (i.1).1,
-            ),
-        ));
-    }
-
-    out
+    ir.into_iter()
+        .map(|i| {
+            Ir::new(
+                i.0,
+                Inst::new(
+                    inst_set(&(i.1).0.to_uppercase()).unwrap_or_else(|s| panic!("{}", s)),
+                    (i.1).1,
+                ),
+            )
+        })
+        .collect()
 }
 
 fn get_mem(mem: Pair<Rule>) -> Mem {
-    let mut out = (String::new(), None);
+    let mut out = Mem::new(String::new(), None);
     match mem.as_rule() {
-        Rule::memoryentry => {
+        Rule::memory_entry => {
             let x = mem.into_inner();
             for i in x {
                 match i.as_rule() {
-                    Rule::address => out.0 = i.as_str().into(),
+                    Rule::address => out.addr = i.as_str().into(),
                     Rule::label => {
-                        out.0 = {
+                        out.addr = {
                             let x = i.as_str().to_string();
-                            x.replace(":", "")
+                            x.replace(':', "")
                         }
                     }
-                    Rule::data => out.1 = Some(i.as_str().into()),
+                    Rule::data => out.data = Some(i.as_str().into()),
                     _ => panic!("{} is not an address, label or data", i.as_str()),
                 }
             }
@@ -374,9 +426,9 @@ fn get_mem(mem: Pair<Rule>) -> Mem {
     }
 
     debug!(
-        "{}\t{}",
-        &out.0,
-        &out.1.clone().unwrap_or_else(|| String::from("None"))
+        "{:>4}\t{:<4}",
+        out.addr,
+        out.data.clone().unwrap_or_else(|| "".into())
     );
     out
 }
@@ -396,30 +448,37 @@ fn get_mems(mem: Pairs<Rule>) -> Vec<Mem> {
 fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
     let mut links = Vec::new();
 
-    for (i, (addr, _)) in mems.iter().enumerate() {
-        for (j, (_, (_, op))) in prog.iter().enumerate() {
+    for (i, Mem { addr, .. }) in mems.iter().enumerate() {
+        for (
+            j,
+            Ir {
+                inst: Inst { op, .. },
+                ..
+            },
+        ) in prog.iter().enumerate()
+        {
             match op {
                 Op::Loc(x) => {
                     if addr == &x.to_string() {
-                        links.push((i, j));
+                        links.push((i, j, None));
                     }
                 }
-                Op::Str(x) => {
+                Op::Fail(x) => {
                     if addr == x {
-                        links.push((i, j));
+                        links.push((i, j, None));
                     }
                 }
                 Op::MultiOp(vec) => {
-                    for op in vec {
+                    for (idx, op) in vec.iter().enumerate() {
                         match op {
                             Op::Loc(x) => {
                                 if addr == &x.to_string() {
-                                    links.push((i, j));
+                                    links.push((i, j, Some(idx)));
                                 }
                             }
-                            Op::Str(x) => {
+                            Op::Fail(x) => {
                                 if addr == x {
-                                    links.push((i, j));
+                                    links.push((i, j, Some(idx)));
                                 }
                             }
                             _ => {}
@@ -435,19 +494,22 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
 
     // linking
     for i in links.clone() {
-        let multi = links.iter().filter(|&&el| el.1 == i.1);
-        if multi.clone().count() > 1 {
-            (prog[i.1].1).1 = Op::MultiOp(multi.map(|&el| Op::Loc(el.0)).collect());
-        } else {
-            (prog[i.1].1).1 = Op::Loc(i.0);
-        }
+        match &prog[i.1].inst.op {
+            Op::MultiOp(ops) => {
+                let mut ops = ops.clone();
+                ops[i.2.unwrap()] = Op::Loc(i.0);
+                prog[i.1].inst.op = Op::MultiOp(ops);
+            }
+            Op::Loc(_) | Op::Fail(_) => prog[i.1].inst.op = Op::Loc(i.0),
+            _ => {}
+        };
     }
 
     let mut memlinks = Vec::new();
 
-    for (i, (addr, _)) in mems.iter().enumerate() {
-        for (j, (_, op)) in mems.iter().enumerate() {
-            if let Some(o) = op {
+    for (i, Mem { addr, .. }) in mems.iter().enumerate() {
+        for (j, Mem { data, .. }) in mems.iter().enumerate() {
+            if let Some(o) = data {
                 if addr == o {
                     memlinks.push((i, j));
                 }
@@ -457,53 +519,28 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
 
     debug!("Detected links within memory:\n{:?}\n", memlinks);
 
-    let mut ir = Vec::new();
-
-    for (i, j) in mems.iter().enumerate() {
-        ir.push((
-            i,
-            MemEntry::new(
-                j.1.clone()
-                    .unwrap_or_else(|| "0".to_string())
-                    .parse()
-                    .unwrap(),
-            ),
-        ));
-    }
+    let mut ir = mems
+        .iter()
+        .enumerate()
+        .map(|(i, j)| {
+            (
+                i,
+                MemEntry::new(
+                    j.data
+                        .clone()
+                        .unwrap_or_else(|| "0".to_string())
+                        .parse()
+                        .unwrap(),
+                ),
+            )
+        })
+        .collect::<Vec<_>>();
 
     for i in memlinks {
         ir[i.1].1.address = Some(i.0);
     }
 
-    let mut out = Vec::new();
-
-    for (i, j) in ir {
-        out.push((i, j));
-    }
-
-    out
-}
-
-pub fn get_literal(mut op: String) -> String {
-    if op.contains('#') {
-        op.remove(0);
-
-        match op.chars().next().unwrap() {
-            'b' | 'B' => {
-                op.remove(0);
-                usize::from_str_radix(&op, 2).unwrap()
-            }
-            'x' | 'X' => {
-                op.remove(0);
-                usize::from_str_radix(&op, 16).unwrap()
-            }
-            '0'..='9' => op.parse::<usize>().unwrap(),
-            _ => unreachable!(),
-        }
-        .to_string()
-    } else {
-        op
-    }
+    ir
 }
 
 #[cfg(test)]
@@ -512,13 +549,14 @@ mod parse_tests {
     use std::time::Instant;
 
     #[cfg(feature = "cambridge")]
-    const PROGRAMS: [(&str, usize); 1] = [(include_str!("../examples/ex3.pasm"), 207)];
+    const PROGRAMS: [(&str, usize); 1] = [(include_str!("../examples/hello.pasm"), 207)];
 
     #[cfg(not(feature = "cambridge"))]
-    const PROGRAMS: [(&str, usize); 3] = [
-        (include_str!("../examples/ex1.pasm"), 65),
-        (include_str!("../examples/ex2.pasm"), 15625),
-        (include_str!("../examples/ex3.pasm"), 207),
+    const PROGRAMS: [(&str, usize); 4] = [
+        (include_str!("../examples/division.pasm"), 65),
+        (include_str!("../examples/multiplication.pasm"), 15625),
+        (include_str!("../examples/hello.pasm"), 207),
+        (include_str!("../examples/functions.pasm"), 65),
     ];
 
     #[test]

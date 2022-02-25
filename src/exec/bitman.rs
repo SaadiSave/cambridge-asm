@@ -3,66 +3,179 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use super::{Context, Op, PasmError, PasmResult};
+use super::{
+    Context,
+    Op::{self, *},
+    PasmError, PasmResult,
+};
 
-pub fn and(ctx: &mut Context, op: Op) -> PasmResult {
+/// Bitwise AND
+///
+/// # Syntax
+/// 1. `AND [lit | reg | loc]` - AND with `ACC`
+/// 2. `AND [reg | loc],[lit | reg | loc]` - store second AND first to first
+/// 3. `AND [reg | loc],[lit | reg | loc],[lit | reg | loc]` - store second AND third to first
+pub fn and(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
-        Op::Loc(x) => ctx.acc &= ctx.mem.get(&x)?,
-        Op::Literal(x) => ctx.acc &= x,
-        Op::None => return Err(PasmError::NoOperand),
-        _ => return Err(PasmError::InvalidOperand),
-    }
-
-    Ok(())
-}
-
-pub fn or(ctx: &mut Context, op: Op) -> PasmResult {
-    match op {
-        Op::Loc(x) => ctx.acc |= ctx.mem.get(&x)?,
-        Op::Literal(x) => ctx.acc |= x,
-        Op::None => return Err(PasmError::NoOperand),
-        _ => return Err(PasmError::InvalidOperand),
-    }
-
-    Ok(())
-}
-
-pub fn xor(ctx: &mut Context, op: Op) -> PasmResult {
-    match op {
-        Op::Loc(x) => ctx.acc ^= ctx.mem.get(&x)?,
-        Op::Literal(x) => ctx.acc ^= x,
-        Op::None => return Err(PasmError::NoOperand),
-        _ => return Err(PasmError::InvalidOperand),
-    }
-
-    Ok(())
-}
-
-pub fn lsl(ctx: &mut Context, op: Op) -> PasmResult {
-    match op {
-        Op::Literal(x) => {
-            if let Some(res) = ctx.acc.checked_shl(x as u32) {
-                ctx.acc = res;
-            } else {
-                warn!("Shift left overflow detected at line {}", ctx.mar + 1);
-                ctx.acc <<= x;
+        MultiOp(ops) => match ops[..] {
+            [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
+                let val = val.get_val(ctx)?;
+                ctx.modify(dest, |d| *d &= val)?;
             }
+            [ref dest, ref a, ref b]
+                if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
+            {
+                let val = a.get_val(ctx)? & b.get_val(ctx)?;
+                ctx.modify(dest, |d| *d = val)?;
+            }
+            _ => return Err(PasmError::InvalidMultiOp),
+        },
+        val if val.is_usizeable() => ctx.acc &= val.get_val(ctx)?,
+        Null => return Err(PasmError::NoOperand),
+        _ => return Err(PasmError::InvalidOperand),
+    }
 
+    Ok(())
+}
+
+/// Bitwise OR
+///
+/// # Syntax
+/// 1. `OR [lit | reg | loc]` - OR with `ACC`
+/// 2. `OR [reg | loc],[lit | reg | loc]` - store second OR first to first
+/// 3. `OR [reg | loc],[lit | reg | loc],[lit | reg | loc]` - store second OR third to first
+pub fn or(ctx: &mut Context, op: &Op) -> PasmResult {
+    match op {
+        MultiOp(ops) => match ops[..] {
+            [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
+                let val = val.get_val(ctx)?;
+                ctx.modify(dest, |d| *d |= val)?;
+            }
+            [ref dest, ref a, ref b]
+                if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
+            {
+                let val = a.get_val(ctx)? | b.get_val(ctx)?;
+                ctx.modify(dest, |d| *d = val)?;
+            }
+            _ => return Err(PasmError::InvalidMultiOp),
+        },
+        val if val.is_usizeable() => ctx.acc |= val.get_val(ctx)?,
+        Null => return Err(PasmError::NoOperand),
+        _ => return Err(PasmError::InvalidOperand),
+    }
+
+    Ok(())
+}
+
+/// Bitwise XOR
+///
+/// # Syntax
+/// 1. `XOR [lit | reg | loc]` - XOR with `ACC`
+/// 2. `XOR [reg | loc],[lit | reg | loc]` - store second XOR first to first
+/// 3. `XOR [reg | loc],[lit | reg | loc],[lit | reg | loc]` - store second XOR third to first
+pub fn xor(ctx: &mut Context, op: &Op) -> PasmResult {
+    match op {
+        MultiOp(ops) => match ops[..] {
+            [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
+                let val = val.get_val(ctx)?;
+                ctx.modify(dest, |d| *d ^= val)?;
+            }
+            [ref dest, ref a, ref b]
+                if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
+            {
+                let val = a.get_val(ctx)? ^ b.get_val(ctx)?;
+                ctx.modify(dest, |d| *d = val)?;
+            }
+            _ => return Err(PasmError::InvalidMultiOp),
+        },
+        val if val.is_usizeable() => ctx.acc ^= val.get_val(ctx)?,
+        Null => return Err(PasmError::NoOperand),
+        _ => return Err(PasmError::InvalidOperand),
+    }
+
+    Ok(())
+}
+
+/// Logical shift left
+///
+/// # Syntax
+/// 1. `LSL [lit | reg | loc]` - LSL with `ACC`
+/// 2. `LSL [reg | loc],[lit | reg | loc]` - store second LSL first to first
+/// 3. `LSL [reg | loc],[lit | reg | loc],[lit | reg | loc]` - store second LSL third to first
+pub fn lsl(ctx: &mut Context, op: &Op) -> PasmResult {
+    #[allow(clippy::cast_possible_truncation)]
+    fn checked_shl(dest: &mut usize, val: usize, mar: usize) {
+        #[cfg(target_pointer_width = "64")]
+        if let Some(res) = dest.checked_shl(val as u32) {
+            *dest = res;
+        } else {
+            warn!("Shift left overflow detected at line {}", mar + 1);
+            *dest <<= val;
+        }
+
+        #[cfg(target_pointer_width = "32")]
+        if let Some(res) = dest.checked_shl(val as u16) {
+            *dest = res;
+        } else {
+            warn!("Shift left overflow detected at line {}", mar + 1);
+            *dest <<= val;
+        }
+    }
+
+    match op {
+        MultiOp(ops) => {
+            let line = ctx.mar;
+            match ops[..] {
+                [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
+                    let val = val.get_val(ctx)?;
+                    ctx.modify(dest, |d| checked_shl(d, val, line))
+                }
+                [ref dest, ref a, ref b]
+                    if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
+                {
+                    let mut a = a.get_val(ctx)?;
+                    checked_shl(&mut a, b.get_val(ctx)?, line);
+                    ctx.modify(dest, |d| *d = a)
+                }
+                _ => Err(PasmError::InvalidMultiOp),
+            }
+        }
+        val if val.is_usizeable() => {
+            let x = val.get_val(ctx)?;
+            checked_shl(&mut ctx.acc, x, ctx.mar);
             Ok(())
         }
-        Op::None => Err(PasmError::NoOperand),
+        Null => Err(PasmError::NoOperand),
         _ => Err(PasmError::InvalidOperand),
     }
 }
 
-pub fn lsr(ctx: &mut Context, op: Op) -> PasmResult {
+/// Logical shift right
+///
+/// # Syntax
+/// 1. `LSR [lit | reg | loc]` - LSR with `ACC`
+/// 2. `LSR [reg | loc],[lit | reg | loc]` - store second LSR first to first
+/// 3. `LSR [reg | loc],[lit | reg | loc],[lit | reg | loc]` - store second LSR third to first
+pub fn lsr(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
-        Op::Literal(x) => {
-            ctx.acc >>= x;
-
+        MultiOp(ops) => match ops[..] {
+            [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
+                let val = val.get_val(ctx)?;
+                ctx.modify(dest, |d| *d >>= val)
+            }
+            [ref dest, ref a, ref b]
+                if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
+            {
+                let val = a.get_val(ctx)? >> b.get_val(ctx)?;
+                ctx.modify(dest, |d| *d = val)
+            }
+            _ => Err(PasmError::InvalidMultiOp),
+        },
+        val if val.is_usizeable() => {
+            ctx.acc >>= val.get_val(ctx)?;
             Ok(())
         }
-        Op::None => Err(PasmError::NoOperand),
+        Null => Err(PasmError::NoOperand),
         _ => Err(PasmError::InvalidOperand),
     }
 }
