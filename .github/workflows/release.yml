@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 env:
   CARGO_TERM_COLOR: always
@@ -12,8 +12,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/saadisave/cambridge-asm-ci:latest
+    container: ghcr.io/saadisave/cambridge-asm-ci:latest
     environment: Release
 
     steps:
