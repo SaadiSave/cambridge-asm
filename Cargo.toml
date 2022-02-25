@@ -1,12 +1,12 @@
 [package]
 name = "cambridge-asm"
-version = "0.10.0"
+version = "0.11.0"
 authors = ["SaadiSave <https://github.com/SaadiSave>"]
 edition = "2021"
 license = "MPL-2.0"
 description = "Run pseudoassembly from Cambridge International syllabus 9618"
 repository = "https://github.com/SaadiSave/cambridge-asm"
-rust-version = "1.57"
+rust-version = "1.59"
 
 [[bin]]
 name = "casm"
