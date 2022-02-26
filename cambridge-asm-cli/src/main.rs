@@ -11,7 +11,7 @@ use std::{ffi::OsString, path::PathBuf};
 
 #[derive(Parser)]
 #[clap(name = "Cambridge Pseudoassembly Interpreter")]
-#[clap(version = "0.11.1")]
+#[clap(version = "0.11.2")]
 #[clap(author = "Saadi Save <github.com/SaadiSave>")]
 #[clap(about = "Run pseudoassembly from Cambridge International syllabus 9618 (2021)")]
 struct Cli {
