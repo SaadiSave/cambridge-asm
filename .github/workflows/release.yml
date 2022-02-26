@@ -27,15 +27,6 @@ jobs:
       - name: Run tests
         run: cargo test && cargo test --all-features
 
-      - name: Cargo login
-        run: cargo login ${{ secrets.CARGO_API_TOKEN }}
-
-      - name: Release lib
-        run: cd cambridge-asm && cargo publish && cd ..
-
-      - name: Release bin
-        run: cd cambridge-asm-cli && cargo publish && cd ..
-
       - name: Build all targets
         run: python3 .github/buildall.py
 

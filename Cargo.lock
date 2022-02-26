@@ -80,10 +80,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "cambridge-asm"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78e1e394d31d43f168bd4888abc66999f4bad8efee5cfcba41d8f0ca0e83ea97"
+dependencies = [
+ "log",
+ "pest",
+ "pest_derive",
+ "regex",
+ "serde",
+]
+
+[[package]]
 name = "cambridge-asm-cli"
 version = "0.11.2"
 dependencies = [
- "cambridge-asm",
+ "cambridge-asm 0.11.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap",
  "env_logger",
 ]
