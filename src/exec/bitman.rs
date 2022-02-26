@@ -6,7 +6,8 @@
 use super::{
     Context,
     Op::{self, *},
-    PasmError, PasmResult,
+    PasmError::*,
+    PasmResult,
 };
 
 /// Bitwise AND
@@ -28,11 +29,11 @@ pub fn and(ctx: &mut Context, op: &Op) -> PasmResult {
                 let val = a.get_val(ctx)? & b.get_val(ctx)?;
                 ctx.modify(dest, |d| *d = val)?;
             }
-            _ => return Err(PasmError::InvalidMultiOp),
+            _ => return Err(InvalidMultiOp),
         },
         val if val.is_usizeable() => ctx.acc &= val.get_val(ctx)?,
-        Null => return Err(PasmError::NoOperand),
-        _ => return Err(PasmError::InvalidOperand),
+        Null => return Err(NoOperand),
+        _ => return Err(InvalidOperand),
     }
 
     Ok(())
@@ -57,11 +58,11 @@ pub fn or(ctx: &mut Context, op: &Op) -> PasmResult {
                 let val = a.get_val(ctx)? | b.get_val(ctx)?;
                 ctx.modify(dest, |d| *d = val)?;
             }
-            _ => return Err(PasmError::InvalidMultiOp),
+            _ => return Err(InvalidMultiOp),
         },
         val if val.is_usizeable() => ctx.acc |= val.get_val(ctx)?,
-        Null => return Err(PasmError::NoOperand),
-        _ => return Err(PasmError::InvalidOperand),
+        Null => return Err(NoOperand),
+        _ => return Err(InvalidOperand),
     }
 
     Ok(())
@@ -86,11 +87,11 @@ pub fn xor(ctx: &mut Context, op: &Op) -> PasmResult {
                 let val = a.get_val(ctx)? ^ b.get_val(ctx)?;
                 ctx.modify(dest, |d| *d = val)?;
             }
-            _ => return Err(PasmError::InvalidMultiOp),
+            _ => return Err(InvalidMultiOp),
         },
         val if val.is_usizeable() => ctx.acc ^= val.get_val(ctx)?,
-        Null => return Err(PasmError::NoOperand),
-        _ => return Err(PasmError::InvalidOperand),
+        Null => return Err(NoOperand),
+        _ => return Err(InvalidOperand),
     }
 
     Ok(())
@@ -137,7 +138,7 @@ pub fn lsl(ctx: &mut Context, op: &Op) -> PasmResult {
                     checked_shl(&mut a, b.get_val(ctx)?, line);
                     ctx.modify(dest, |d| *d = a)
                 }
-                _ => Err(PasmError::InvalidMultiOp),
+                _ => Err(InvalidMultiOp),
             }
         }
         val if val.is_usizeable() => {
@@ -145,8 +146,8 @@ pub fn lsl(ctx: &mut Context, op: &Op) -> PasmResult {
             checked_shl(&mut ctx.acc, x, ctx.mar);
             Ok(())
         }
-        Null => Err(PasmError::NoOperand),
-        _ => Err(PasmError::InvalidOperand),
+        Null => Err(NoOperand),
+        _ => Err(InvalidOperand),
     }
 }
 
@@ -169,13 +170,13 @@ pub fn lsr(ctx: &mut Context, op: &Op) -> PasmResult {
                 let val = a.get_val(ctx)? >> b.get_val(ctx)?;
                 ctx.modify(dest, |d| *d = val)
             }
-            _ => Err(PasmError::InvalidMultiOp),
+            _ => Err(InvalidMultiOp),
         },
         val if val.is_usizeable() => {
             ctx.acc >>= val.get_val(ctx)?;
             Ok(())
         }
-        Null => Err(PasmError::NoOperand),
-        _ => Err(PasmError::InvalidOperand),
+        Null => Err(NoOperand),
+        _ => Err(InvalidOperand),
     }
 }
