@@ -14,11 +14,11 @@ use std::{collections::BTreeMap, ops::Deref, path::Path};
 
 #[derive(Parser)]
 #[grammar = "pasm.pest"]
-struct PasmParser;
+pub(crate) struct PasmParser;
 
 pub type InstSet = fn(&str) -> Result<OpFun, String>;
 
-struct Mem {
+pub(crate) struct Mem {
     pub addr: String,
     pub data: Option<String>,
 }
@@ -40,7 +40,7 @@ impl Ir {
     }
 }
 
-struct StrInst {
+pub(crate) struct StrInst {
     pub addr: Option<String>,
     pub opcode: String,
     pub op: Option<String>,
@@ -132,7 +132,7 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
     exe
 }
 
-pub fn from_file(path: &Path, inst_set: InstSet) -> Executor {
+pub fn from_file(path: impl AsRef<Path>, inst_set: InstSet) -> Executor {
     let prog = std::fs::read_to_string(path).expect("Cannot read file");
 
     info!("File read complete.");
@@ -307,7 +307,7 @@ fn get_inst(inst: Pair<Rule>) -> StrInst {
     out
 }
 
-fn get_insts(inst: Pairs<Rule>) -> Vec<StrInst> {
+pub(crate) fn get_insts(inst: Pairs<Rule>) -> Vec<StrInst> {
     let mut out = Vec::new();
 
     for pair in inst {
@@ -319,7 +319,7 @@ fn get_insts(inst: Pairs<Rule>) -> Vec<StrInst> {
     out
 }
 
-fn process_insts(insts: Vec<StrInst>, inst_set: fn(&str) -> Result<OpFun, String>) -> Vec<Ir> {
+pub(crate) fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op))> {
     let mut links = Vec::new();
 
     let inst_list: Vec<_> = insts
@@ -390,12 +390,17 @@ fn process_insts(insts: Vec<StrInst>, inst_set: fn(&str) -> Result<OpFun, String
         };
     }
 
-    ir.into_iter()
+    ir
+}
+
+fn process_insts(insts: Vec<StrInst>, inst_set: fn(&str) -> Result<OpFun, String>) -> Vec<Ir> {
+    process_inst_links(insts)
+        .into_iter()
         .map(|i| {
             Ir::new(
                 i.0,
                 Inst::new(
-                    inst_set(&(i.1).0.to_uppercase()).unwrap_or_else(|s| panic!("{}", s)),
+                    inst_set(&(i.1).0.to_uppercase()).unwrap_or_else(|s| panic!("{s}")),
                     (i.1).1,
                 ),
             )
@@ -433,7 +438,7 @@ fn get_mem(mem: Pair<Rule>) -> Mem {
     out
 }
 
-fn get_mems(mem: Pairs<Rule>) -> Vec<Mem> {
+pub(crate) fn get_mems(mem: Pairs<Rule>) -> Vec<Mem> {
     let mut out = Vec::new();
 
     for pair in mem {
@@ -570,9 +575,10 @@ mod parse_tests {
         for (prog, acc) in PROGRAMS {
             let t = Instant::now();
             let mut exec = parser(prog);
+            println!("{:?} elapsed", t.elapsed());
             exec.exec();
             assert_eq!(exec.ctx.acc, acc);
-            dbg!(t.elapsed());
+            println!("{:?} elapsed", t.elapsed());
         }
     }
 }

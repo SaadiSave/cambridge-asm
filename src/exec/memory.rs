@@ -1,12 +1,11 @@
 use super::{PasmError, PasmResult};
-use std::collections::btree_map::Iter;
-use std::fmt::Display;
+use serde::{Deserialize, Serialize};
 use std::{
-    collections::btree_map::BTreeMap,
-    fmt::{Debug, Formatter, Result as FmtResult},
+    collections::{btree_map::BTreeMap, btree_map::Iter},
+    fmt::{Debug, Display, Formatter, Result as FmtResult},
 };
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct MemEntry {
     pub literal: usize,
     pub address: Option<usize>,
@@ -41,7 +40,7 @@ impl Display for MemEntry {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct Memory(BTreeMap<usize, MemEntry>);
 

@@ -1,8 +1,8 @@
-use super::{Context, PasmResult};
-use crate::exec::PasmError;
+use crate::exec::{Context, PasmError, PasmResult};
+use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum Op {
     Fail(String),
     Acc,
@@ -61,24 +61,18 @@ impl ToString for Op {
             Acc => "ACC".to_string(),
             Ix => "IX".to_string(),
             Cmp => "CMP".to_string(),
-            Ar => "ar".to_string(),
-            Loc(x) | Literal(x) => format!("{x}"),
+            Ar => "AR".to_string(),
+            Loc(x) => format!("{x}"),
+            Literal(x) => format!("#{x}"),
             Fail(x) => format!("`{x}` was not parsed successfully"),
             Gpr(x) => format!("r{x}"),
-            MultiOp(v) => {
-                let mut o = "[".to_string();
-                v.iter()
-                    .map(Self::to_string)
-                    .enumerate()
-                    .for_each(|(idx, op)| {
-                        if idx == v.len() - 1 {
-                            o.push_str(&format!("{op}]"));
-                        } else {
-                            o.push_str(&format!("{op}, "));
-                        }
-                    });
-                o
-            }
+            MultiOp(v) => v.iter().enumerate().fold(String::new(), |out, (idx, op)| {
+                if idx == v.len() - 1 {
+                    format!("{out}{}", op.to_string())
+                } else {
+                    format!("{out}{},", op.to_string())
+                }
+            }),
         }
     }
 }

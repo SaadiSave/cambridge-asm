@@ -21,7 +21,11 @@ pest_derive = "2.1"
 log = "0.4"
 env_logger = "0.9"
 regex = "1.5.4"
-proc-macro2 = "1.0.36"
+serde_json = "1"
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
 
 [dependencies.clap]
 version = "3.0"

@@ -101,6 +101,7 @@ impl Context {
 
     /// # Panics
     /// If `op` is not writable. To avoid this, check `op` using [`Op::is_read_write`].
+    #[inline]
     pub fn modify(&mut self, op: &Op, f: impl Fn(&mut usize)) -> PasmResult {
         match op {
             Op::Loc(x) => {
@@ -178,13 +179,13 @@ impl Executor {
 
             trace!("Executing line {}", self.ctx.mar + 1);
 
-            let cir = if let Some(cir) = self.prog.get(&self.ctx.mar) {
-                cir
+            let inst = if let Some(inst) = self.prog.get(&self.ctx.mar) {
+                inst
             } else {
                 panic!("Unable to fetch instruction. Please report this as a bug with full debug logs attached.")
             };
 
-            match (cir.opfun)(&mut self.ctx, &cir.op) {
+            match (inst.opfun)(&mut self.ctx, &inst.op) {
                 Ok(_) => (),
                 Err(e) => {
                     self.source.handle_err(&e, self.ctx.mar);
@@ -207,7 +208,7 @@ impl Display for Executor {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.write_str("Executor {\n")?;
         for (addr, Inst { op, .. }) in &self.prog {
-            f.write_fmt(format_args!("{addr:>6}: {op},\n", op = op.to_string()))?;
+            f.write_fmt(format_args!("{addr:>6}: {op}\n", op = op.to_string()))?;
         }
         f.write_str("}")
     }
