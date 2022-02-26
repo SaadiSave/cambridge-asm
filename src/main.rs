@@ -7,11 +7,11 @@
 
 use cambridge_asm::parse;
 use clap::Parser;
-use std::{path::PathBuf, ffi::OsString};
+use std::{ffi::OsString, path::PathBuf};
 
 #[derive(Parser)]
 #[clap(name = "Cambridge Pseudoassembly Interpreter")]
-#[clap(version = "0.10.0")]
+#[clap(version = "0.11.1")]
 #[clap(author = "Saadi Save <github.com/SaadiSave>")]
 #[clap(about = "Run pseudoassembly from Cambridge International syllabus 9618 (2021)")]
 struct Cli {
@@ -24,7 +24,7 @@ struct Cli {
 
     #[clap(short = 't', long = "bench")]
     #[clap(help = "Show execution time")]
-    bench: bool
+    bench: bool,
 }
 
 fn main() {
