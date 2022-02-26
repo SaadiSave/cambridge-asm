@@ -1,0 +1,24 @@
+[package]
+name = "cambridge-asm-cli"
+version = "0.11.2"
+authors = ["SaadiSave <https://github.com/SaadiSave>"]
+edition = "2021"
+license = "MPL-2.0"
+description = "Run pseudoassembly from Cambridge International syllabus 9618"
+repository = "https://github.com/SaadiSave/cambridge-asm"
+rust-version = "1.59"
+
+[[bin]]
+name = "casm"
+path = "src/main.rs"
+
+[features]
+cambridge = ["cambridge-asm/cambridge"]
+
+[dependencies]
+env_logger = "0.9"
+cambridge-asm = { path = "../cambridge-asm" }
+
+[dependencies.clap]
+version = "3.0"
+features = ["derive"]
