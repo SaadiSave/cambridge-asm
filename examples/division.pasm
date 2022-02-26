@@ -5,9 +5,9 @@
     CMP 203,204
     JPN 환상선                 // Jump to loop start if not equal
     DBG RES                 // Show result
-    ADD ACC,#x3a,#b111
+    ADD ACC,#b111,#o72
     OUT                     // Print A
-    OUT #10                 // Newline
+    OUT #xa                 // Newline
     END
 
 200 0

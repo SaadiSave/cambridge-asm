@@ -7,8 +7,8 @@ address = { num+ }
 label = @{ ( !":" ~ unicode )+ ~ ":" }
 op = { alpha+ }
 data = { num+ }
-immediate = _{ "#" ~ ( num+ | ("b" | "B") ~ bin+ | ("x" | "X") ~ hex+ ) }
-oper = @{ immediate | address | "r" ~ num{1, 2} | !"//" ~ !"#" ~ !"," ~ unicode+ }
+immediate = _{ "#" ~ ( num+ | ("b" | "B") ~ bin+ | ("x" | "X") ~ hex+ | ("o" | "O") ~ oct+ ) }
+oper = @{ immediate | address | "r" ~ num{1, 2} | !"//" ~ !"#" ~ !"," ~ !"r" ~ unicode+ }
 operand = @{ oper ~ ( "," ~ oper )* }
 
 comment = _{ "//" ~ space* ~ ( unicode+ ~ space* )* ~ space* }
@@ -25,4 +25,5 @@ num = _{ ASCII_DIGIT }
 alpha = _{ ASCII_ALPHA }
 hex = _{ ASCII_HEX_DIGIT }
 bin = _{ ASCII_BIN_DIGIT }
+oct = _{ ASCII_OCT_DIGIT }
 unicode = _{ !space ~ !NEWLINE ~ ANY }

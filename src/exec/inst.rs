@@ -102,6 +102,10 @@ pub fn get_literal(mut op: String) -> usize {
                 op.remove(0);
                 usize::from_str_radix(&op, 16).unwrap()
             }
+            'o' | 'O' => {
+                op.remove(0);
+                usize::from_str_radix(&op, 8).unwrap()
+            }
             '0'..='9' => op.parse::<usize>().unwrap(),
             _ => unreachable!(),
         }
