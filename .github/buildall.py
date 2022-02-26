@@ -4,7 +4,7 @@ from os import system, listdir
 
 system("mkdir release")
 
-arches = [
+targets = [
     ("x86_64-unknown-linux-gnu", "x64-linux"),
     ("aarch64-unknown-linux-gnu", "arm64-linux"),
     ("riscv64gc-unknown-linux-gnu", "riscv64-linux"),
@@ -12,26 +12,37 @@ arches = [
 ]
 
 
-def extension(triple: str) -> str:
-    return ".exe" if ("windows" in triple) else ""
+def extension(target: str) -> str:
+    return ".exe" if ("windows" in target) else ""
 
 
-for triple, _ in arches:
-    system(f"cargo build --profile prod --target {triple}")
+def build():
+    for triple, _ in targets:
+        system(f"cargo build --profile prod --target {triple}")
 
-for triple, user_arch in arches:
-    system(
-        f"zip release/cambridge-asm-{user_arch} target/{triple}/prod/casm{extension(triple)}"
-    )
+    for triple, arch in targets:
+        system(
+            f"zip -j release/cambridge-asm-{arch} target/{triple}/prod/casm{extension(triple)} README.md LICENSE"
+        )
 
-for triple, _ in arches:
-    system(f"cargo build --features=cambridge --profile prod --target {triple}")
 
-for triple, user_arch in arches:
-    system(
-        f"zip release/cambridge-asm-{user_arch}-caie target/{triple}/prod/casm{extension(triple)}"
-    )
+def build_caie():
+    for triple, _ in targets:
+        system(f"cargo build --features=cambridge --profile prod --target {triple}")
 
-for name in listdir("./release"):
-    if name.endswith(".zip"):
-        system(f"sha256sum release/{name} > release/{name}.sha256sum")
+    for triple, arch in targets:
+        system(
+            f"zip -j release/cambridge-asm-{arch}-caie target/{triple}/prod/casm{extension(triple)} README.md LICENSE"
+        )
+
+
+def checksum():
+    for name in listdir("./release"):
+        if name.endswith(".zip"):
+            system(f"sha256sum release/{name} > release/{name}.sha256sum")
+
+
+if __name__ == "__main__":
+    build()
+    build_caie()
+    checksum()
