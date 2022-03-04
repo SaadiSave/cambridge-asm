@@ -67,10 +67,11 @@ impl ToString for Op {
             Fail(x) => format!("`{x}` was not parsed successfully"),
             Gpr(x) => format!("r{x}"),
             MultiOp(v) => v.iter().enumerate().fold(String::new(), |out, (idx, op)| {
+                let op = op.to_string();
                 if idx == v.len() - 1 {
-                    format!("{out}{}", op.to_string())
+                    format!("{out}{op}")
                 } else {
-                    format!("{out}{},", op.to_string())
+                    format!("{out}{op},")
                 }
             }),
         }
@@ -100,7 +101,7 @@ pub fn get_literal(mut op: String) -> usize {
                 op.remove(0);
                 usize::from_str_radix(&op, 8).unwrap()
             }
-            '0'..='9' => op.parse::<usize>().unwrap(),
+            '0'..='9' => op.parse().unwrap(),
             _ => unreachable!(),
         }
     } else {
@@ -164,8 +165,8 @@ pub struct Inst {
 }
 
 impl Inst {
-    pub fn new(inst: OpFun, op: Op) -> Inst {
-        Inst { opfun: inst, op }
+    pub fn new(inst: OpFun, op: Op) -> Self {
+        Self { opfun: inst, op }
     }
 }
 

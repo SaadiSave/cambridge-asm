@@ -42,7 +42,7 @@ impl CompiledProg {
                     Inst::new(inst_set(&opfun).unwrap_or_else(|s| panic!("{s}")), op),
                 )
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect();
 
         Executor::new("", prog, Context::new(self.mem))
     }
@@ -125,7 +125,7 @@ pub fn compile(prog: impl Deref<Target = str>, inst_set: InstSet) -> CompiledPro
     let prog = insts
         .into_iter()
         .map(|Ir { addr, inst }| (addr, inst))
-        .collect::<BTreeMap<_, _>>();
+        .collect();
 
     let exe = CompiledProg::new(prog, Memory::new(mem));
 

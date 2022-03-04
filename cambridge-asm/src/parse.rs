@@ -24,8 +24,8 @@ pub(crate) struct Mem {
 }
 
 impl Mem {
-    pub fn new(addr: String, data: Option<String>) -> Mem {
-        Mem { addr, data }
+    pub fn new(addr: String, data: Option<String>) -> Self {
+        Self { addr, data }
     }
 }
 
@@ -35,8 +35,8 @@ struct Ir {
 }
 
 impl Ir {
-    pub fn new(addr: usize, inst: Inst) -> Ir {
-        Ir { addr, inst }
+    pub fn new(addr: usize, inst: Inst) -> Self {
+        Self { addr, inst }
     }
 }
 
@@ -47,8 +47,8 @@ pub(crate) struct StrInst {
 }
 
 impl StrInst {
-    pub fn new(addr: Option<String>, opcode: String, op: Option<String>) -> StrInst {
-        StrInst { addr, opcode, op }
+    pub fn new(addr: Option<String>, opcode: String, op: Option<String>) -> Self {
+        Self { addr, opcode, op }
     }
 }
 
@@ -121,7 +121,7 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
     let prog = insts
         .into_iter()
         .map(|Ir { addr, inst }| (addr, inst))
-        .collect::<BTreeMap<_, _>>();
+        .collect();
 
     let exe = Executor::new(src, prog, Context::new(Memory::new(mem)));
 

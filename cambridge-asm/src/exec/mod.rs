@@ -61,8 +61,8 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(mem: Memory) -> Context {
-        Context {
+    pub fn new(mem: Memory) -> Self {
+        Self {
             mem,
             ..Context::default()
         }
@@ -160,8 +160,8 @@ pub struct Executor {
 }
 
 impl Executor {
-    pub fn new(source: impl Into<Source>, prog: ExTree, ctx: Context) -> Executor {
-        Executor {
+    pub fn new(source: impl Into<Source>, prog: ExTree, ctx: Context) -> Self {
+        Self {
             source: source.into(),
             prog,
             ctx,

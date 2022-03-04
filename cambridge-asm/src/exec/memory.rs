@@ -12,8 +12,8 @@ pub struct MemEntry {
 }
 
 impl MemEntry {
-    pub fn new(val: usize) -> MemEntry {
-        MemEntry {
+    pub fn new(val: usize) -> Self {
+        Self {
             literal: val,
             address: None,
         }
