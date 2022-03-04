@@ -17,7 +17,10 @@ cambridge = ["cambridge-asm/cambridge"]
 
 [dependencies]
 env_logger = "0.9"
-cambridge-asm = "0.11.2"
+cambridge-asm = "0.11"
+serde_json = "1"
+ron = "0.6"
+serde_yaml = "0.8"
 
 [dependencies.clap]
 version = "3.0"

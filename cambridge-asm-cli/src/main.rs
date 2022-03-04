@@ -5,9 +5,19 @@
 
 #![warn(clippy::pedantic)]
 
-use cambridge_asm::parse;
-use clap::Parser;
-use std::{ffi::OsString, path::PathBuf};
+use cambridge_asm::{
+    compile::{self, CompiledProg},
+    exec::Executor,
+    parse::{self, InstSet},
+};
+use clap::{ArgEnum, Parser, Subcommand};
+use std::ffi::OsString;
+
+#[cfg(feature = "cambridge")]
+const INST_SET: InstSet = parse::get_fn;
+
+#[cfg(not(feature = "cambridge"))]
+const INST_SET: InstSet = parse::get_fn_ext;
 
 #[derive(Parser)]
 #[clap(name = "Cambridge Pseudoassembly Interpreter")]
@@ -15,56 +25,182 @@ use std::{ffi::OsString, path::PathBuf};
 #[clap(author = "Saadi Save <github.com/SaadiSave>")]
 #[clap(about = "Run pseudoassembly from Cambridge International syllabus 9618 (2021)")]
 struct Cli {
-    #[clap(help = "Path to the input file containing pseudoassembly")]
-    input: OsString,
-
-    #[clap(short = 'v', long = "verbose", parse(from_occurrences))]
-    #[clap(help = "Increase logging level")]
-    verbosity: usize,
-
-    #[clap(short = 't', long = "bench")]
-    #[clap(help = "Show execution time")]
-    bench: bool,
+    #[clap(subcommand)]
+    commands: Commands,
 }
 
-fn main() {
-    let parsed = Cli::parse();
+#[derive(Subcommand)]
+enum Commands {
+    /// Run compiled or plaintext pseudoassembly
+    Run {
+        #[clap(help = "Path to the input file containing compiled or plaintext pseudoassembly")]
+        path: OsString,
 
-    set_log_level(parsed.verbosity);
+        #[clap(short = 'v', long = "verbose", parse(from_occurrences))]
+        #[clap(help = "Increase logging level")]
+        verbosity: usize,
+
+        #[clap(short = 't', long = "bench")]
+        #[clap(help = "Show execution time")]
+        bench: bool,
+
+        #[clap(arg_enum)]
+        #[clap(default_value_t = InFormats::Pasm)]
+        #[clap(short = 'f', long = "format")]
+        #[clap(help = "Format of input file")]
+        format: InFormats,
+    },
+    /// Compile pseudoassembly
+    Compile {
+        #[clap(help = "Path to the input file containing pseudoassembly")]
+        input: OsString,
+
+        #[clap(short = 'o', long = "output")]
+        #[clap(help = "Path to output file")]
+        output: Option<OsString>,
+
+        #[clap(short = 'v', long = "verbose", parse(from_occurrences))]
+        #[clap(help = "Increase logging level")]
+        verbosity: usize,
+
+        #[clap(arg_enum)]
+        #[clap(short = 'f', long = "format")]
+        #[clap(help = "Format of output file")]
+        #[clap(default_value_t = OutFormats::Json)]
+        format: OutFormats,
+
+        #[clap(short = 'm', long = "minify")]
+        #[clap(help = "Minify output")]
+        minify: bool,
+    },
+}
+
+#[derive(ArgEnum, Clone)]
+enum InFormats {
+    Pasm,
+    Json,
+    Ron,
+    Yaml,
+}
+
+#[derive(ArgEnum, Clone)]
+enum OutFormats {
+    Json,
+    Ron,
+    Yaml,
+}
+
+#[allow(clippy::enum_glob_use)]
+fn main() -> std::io::Result<()> {
+    let cli = Cli::parse();
 
     #[cfg(not(debug_assertions))]
     std::panic::set_hook(Box::new(handle_panic));
 
+    match cli.commands {
+        Commands::Run {
+            path,
+            verbosity,
+            bench,
+            format,
+        } => {
+            use InFormats::*;
+
+            let parser: Box<dyn FnOnce(String, InstSet) -> Executor> = match format {
+                Pasm => Box::new(|s, set| parse::parse(s, set)),
+                Json => Box::new(|s, set| {
+                    serde_json::from_str::<CompiledProg>(&s)
+                        .unwrap()
+                        .to_executor(set)
+                }),
+                Ron => {
+                    Box::new(|s, set| ron::from_str::<CompiledProg>(&s).unwrap().to_executor(set))
+                }
+                Yaml => Box::new(|s, set| {
+                    serde_yaml::from_str::<CompiledProg>(&s)
+                        .unwrap()
+                        .to_executor(set)
+                }),
+            };
+
+            init_logger(verbosity);
+            let prog = std::fs::read_to_string(path)?;
+
+            let mut timer = bench.then(std::time::Instant::now);
+
+            let mut executor = parser(prog, INST_SET);
+
+            timer = timer.map(|t| {
+                println!("Total parse time: {:?}", t.elapsed());
+                std::time::Instant::now()
+            });
+
+            if timer.is_some() || verbosity > 0 {
+                println!("Execution starts on next line");
+            }
+
+            executor.exec();
+
+            let _ = timer.map(|t| println!("Execution done\nExecution time: {:?}", t.elapsed()));
+        }
+        Commands::Compile {
+            mut input,
+            output,
+            verbosity,
+            format,
+            minify,
+        } => {
+            use OutFormats::*;
+
+            let serializer: Box<dyn FnOnce(CompiledProg) -> String> = match format {
+                Json => Box::new(|prog| {
+                    use serde_json::ser::{to_string, to_string_pretty};
+
+                    if minify {
+                        to_string(&prog).unwrap()
+                    } else {
+                        to_string_pretty(&prog).unwrap()
+                    }
+                }),
+                Ron => Box::new(|prog| {
+                    use ron::ser::{to_string, to_string_pretty, PrettyConfig};
+
+                    if minify {
+                        to_string(&prog).unwrap()
+                    } else {
+                        to_string_pretty(&prog, PrettyConfig::default()).unwrap()
+                    }
+                }),
+                Yaml => Box::new(|prog| serde_yaml::to_string(&prog).unwrap()),
+            };
+
+            init_logger(verbosity);
+            let prog = std::fs::read_to_string(&input)?;
+            let compiled = compile::compile(prog, INST_SET);
+
+            let output = output.unwrap_or_else(|| {
+                input.push(match format {
+                    Json => ".json",
+                    Ron => ".ron",
+                    Yaml => ".yaml",
+                });
+                input
+            });
+
+            std::fs::write(output, serializer(compiled))?;
+        }
+    }
+
+    Ok(())
+}
+
+fn init_logger(verbosity: usize) {
+    set_log_level(verbosity);
     env_logger::builder()
         .format_timestamp(None)
         .format_indent(None)
-        .format_module_path(false)
+        .format_target(false)
         .init();
-
-    let mut x = parsed.bench.then(std::time::Instant::now);
-
-    let fpath = PathBuf::from(parsed.input);
-
-    #[cfg(feature = "cambridge")]
-    let mut exec = parse::from_file(&fpath, parse::get_fn);
-
-    #[cfg(not(feature = "cambridge"))]
-    let mut exec = parse::from_file(&fpath, parse::get_fn_ext);
-
-    if let Some(inst) = x {
-        println!("Total parse time: {:?}", inst.elapsed());
-        x = Some(std::time::Instant::now());
-    }
-
-    if x.is_some() || parsed.verbosity > 0 {
-        println!("Execution starts on next line");
-    }
-
-    exec.exec();
-
-    if let Some(inst) = x {
-        println!("Execution done\nExecution time: {:?}", inst.elapsed());
-    }
 }
 
 fn set_log_level(v: usize) {
