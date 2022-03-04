@@ -370,7 +370,8 @@ pub(crate) fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op
         }
     }
 
-    debug!("Detected links within program:\n{:?}\n", links);
+    debug!("Detected links within program:");
+    debug!("{:?}\n", links);
 
     let mut ir = inst_list
         .into_iter()
@@ -495,7 +496,8 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
         }
     }
 
-    debug!("Detected links between program and memory:\n{:?}\n", links);
+    debug!("Detected links between program and memory:");
+    debug!("{:?}\n", links);
 
     // linking
     for i in links.clone() {
@@ -522,7 +524,8 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
         }
     }
 
-    debug!("Detected links within memory:\n{:?}\n", memlinks);
+    debug!("Detected links within memory:");
+    debug!("{:?}\n", memlinks);
 
     let mut ir = mems
         .iter()
