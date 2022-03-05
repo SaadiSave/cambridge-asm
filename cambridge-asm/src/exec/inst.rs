@@ -1,8 +1,15 @@
 use crate::exec::{Context, PasmError, PasmResult};
-use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 
-#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "bincode")]
+use bincode::{Decode, Encode};
+
+#[derive(PartialEq, Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub enum Op {
     Fail(String),
     Acc,

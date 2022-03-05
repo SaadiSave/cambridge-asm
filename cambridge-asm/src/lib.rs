@@ -13,6 +13,8 @@
 #[macro_use]
 extern crate log;
 
-pub mod compile;
 pub mod exec;
 pub mod parse;
+
+#[cfg(feature = "compile")]
+pub mod compile;

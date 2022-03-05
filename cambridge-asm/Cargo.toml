@@ -9,7 +9,9 @@ repository = "https://github.com/SaadiSave/cambridge-asm"
 rust-version = "1.59"
 
 [features]
+default = ["compile"]
 cambridge = []
+compile = ["serde"]
 
 [dependencies]
 pest = "2.1"
@@ -17,9 +19,14 @@ pest_derive = "2.1"
 log = "0.4"
 regex = "1.5.4"
 
+[dependencies.bincode]
+version = "2.0.0-rc.1"
+optional = true
+
 [dependencies.serde]
 version = "1"
 features = ["derive"]
+optional = true
 
 [dev-dependencies]
 serde_json = "1"

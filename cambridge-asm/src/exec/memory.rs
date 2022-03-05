@@ -1,11 +1,18 @@
 use super::{PasmError, PasmResult};
-use serde::{Deserialize, Serialize};
 use std::{
     collections::{btree_map::BTreeMap, btree_map::Iter},
     fmt::{Debug, Display, Formatter, Result as FmtResult},
 };
 
-#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "bincode")]
+use bincode::{Decode, Encode};
+
+#[derive(Debug, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct MemEntry {
     pub literal: usize,
     pub address: Option<usize>,
@@ -40,7 +47,9 @@ impl Display for MemEntry {
     }
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 #[repr(transparent)]
 pub struct Memory(BTreeMap<usize, MemEntry>);
 

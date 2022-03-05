@@ -4,10 +4,16 @@ use crate::{
 };
 use pest::Parser;
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, ops::Deref, path::Path};
 
-#[derive(Serialize, Deserialize)]
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "bincode")]
+use bincode::{Decode, Encode};
+
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct CompiledInst {
     pub opfun: String,
     pub op: Op,
@@ -21,7 +27,8 @@ impl CompiledInst {
 
 pub type CompiledTree = BTreeMap<usize, CompiledInst>;
 
-#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct CompiledProg {
     pub prog: CompiledTree,
     pub mem: Memory,
