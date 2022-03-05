@@ -1,6 +1,6 @@
 [package]
 name = "cambridge-asm"
-version = "0.12.0"
+version = "0.12.1"
 authors = ["SaadiSave <https://github.com/SaadiSave>"]
 edition = "2021"
 license = "MPL-2.0"
@@ -11,7 +11,7 @@ rust-version = "1.59"
 [features]
 default = ["compile"]
 cambridge = []
-compile = ["serde"]
+compile = ["serde", "bincode"]
 
 [dependencies]
 pest = "2.1"
