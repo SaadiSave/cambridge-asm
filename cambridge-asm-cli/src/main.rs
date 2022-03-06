@@ -81,6 +81,7 @@ enum InFormats {
     Json,
     Ron,
     Yaml,
+    Bin,
 }
 
 #[derive(ArgEnum, Clone)]
@@ -88,6 +89,7 @@ enum OutFormats {
     Json,
     Ron,
     Yaml,
+    Bin,
 }
 
 #[allow(clippy::enum_glob_use)]
@@ -106,35 +108,41 @@ fn main() -> std::io::Result<()> {
         } => {
             use InFormats::*;
 
-            let parser: Box<dyn FnOnce(String, InstSet) -> Executor> = match format {
-                Pasm => Box::new(|s, set| parse::parse(s, set)),
-                Json => Box::new(|s, set| {
-                    serde_json::from_str::<CompiledProg>(&s)
+            let parser: Box<dyn FnOnce(Vec<u8>, InstSet) -> Executor> = match format {
+                Pasm => Box::new(|v, set| parse::parse(String::from_utf8_lossy(&v), set)),
+                Json => Box::new(|v, set| {
+                    serde_json::from_str::<CompiledProg>(&String::from_utf8_lossy(&v))
                         .unwrap()
                         .to_executor(set)
                 }),
-                Ron => {
-                    Box::new(|s, set| ron::from_str::<CompiledProg>(&s).unwrap().to_executor(set))
-                }
-                Yaml => Box::new(|s, set| {
-                    serde_yaml::from_str::<CompiledProg>(&s)
+                Ron => Box::new(|v, set| {
+                    ron::from_str::<CompiledProg>(&String::from_utf8_lossy(&v))
                         .unwrap()
+                        .to_executor(set)
+                }),
+                Yaml => Box::new(|v, set| {
+                    serde_yaml::from_str::<CompiledProg>(&String::from_utf8_lossy(&v))
+                        .unwrap()
+                        .to_executor(set)
+                }),
+                Bin => Box::new(|v, set| {
+                    bincode::decode_from_slice::<CompiledProg, _>(&v, bincode::config::standard())
+                        .unwrap()
+                        .0
                         .to_executor(set)
                 }),
             };
 
             init_logger(verbosity);
-            let prog = std::fs::read_to_string(path)?;
-
+            let prog_bytes = std::fs::read(path)?;
             let mut timer = bench.then(std::time::Instant::now);
 
-            let mut executor = parser(prog, INST_SET);
+            let mut executor = parser(prog_bytes, INST_SET);
 
             timer = timer.map(|t| {
                 println!("Total parse time: {:?}", t.elapsed());
                 std::time::Instant::now()
             });
-
             if timer.is_some() || verbosity > 0 {
                 println!("Execution starts on next line");
             }
@@ -152,26 +160,31 @@ fn main() -> std::io::Result<()> {
         } => {
             use OutFormats::*;
 
-            let serializer: Box<dyn FnOnce(CompiledProg) -> String> = match format {
+            let serializer: Box<dyn FnOnce(CompiledProg) -> Vec<u8>> = match format {
                 Json => Box::new(|prog| {
                     use serde_json::ser::{to_string, to_string_pretty};
 
-                    if minify {
+                    (if minify {
                         to_string(&prog).unwrap()
                     } else {
                         to_string_pretty(&prog).unwrap()
-                    }
+                    })
+                    .into_bytes()
                 }),
                 Ron => Box::new(|prog| {
                     use ron::ser::{to_string, to_string_pretty, PrettyConfig};
 
-                    if minify {
+                    (if minify {
                         to_string(&prog).unwrap()
                     } else {
                         to_string_pretty(&prog, PrettyConfig::default()).unwrap()
-                    }
+                    })
+                    .into_bytes()
                 }),
-                Yaml => Box::new(|prog| serde_yaml::to_string(&prog).unwrap()),
+                Yaml => Box::new(|prog| serde_yaml::to_string(&prog).unwrap().into_bytes()),
+                Bin => Box::new(|prog| {
+                    bincode::encode_to_vec(&prog, bincode::config::standard()).unwrap()
+                }),
             };
 
             init_logger(verbosity);
@@ -183,11 +196,12 @@ fn main() -> std::io::Result<()> {
                     Json => ".json",
                     Ron => ".ron",
                     Yaml => ".yaml",
+                    Bin => ".bin",
                 });
                 input
             });
 
-            std::fs::write(output, serializer(compiled))?;
+            std::fs::write(output, &*serializer(compiled))?;
         }
     }
 
