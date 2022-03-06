@@ -21,7 +21,7 @@ const INST_SET: InstSet = parse::get_fn_ext;
 
 #[derive(Parser)]
 #[clap(name = "Cambridge Pseudoassembly Interpreter")]
-#[clap(version = "0.11.2")]
+#[clap(version = "0.12")]
 #[clap(author = "Saadi Save <github.com/SaadiSave>")]
 #[clap(about = "Run pseudoassembly from Cambridge International syllabus 9618 (2021)")]
 struct Cli {
