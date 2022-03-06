@@ -2,7 +2,7 @@
 extern crate cambridge_asm;
 
 inst! {
-    custom | ctx | override { println!("This is a custom instruction"); ctx.mar += 1; }
+    custom | ctx | override { println!("This is a custom instruction"); ctx.mar += 1; ctx.gprs[0] = 20;}
 }
 
 extend! {
@@ -32,4 +32,5 @@ NONE:
     let mut e = cambridge_asm::parse::parse(PROG, get_instruction);
     e.exec();
     assert_eq!(e.ctx.acc, 65);
+    assert_eq!(e.ctx.gprs[0], 20);
 }
