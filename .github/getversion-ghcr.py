@@ -4,7 +4,7 @@ from os import popen
 
 version = popen("git describe --tags --abbrev=0").read()
 
-assert "podman" in version
+assert "ghcr" in version
 
 version = version.split("-")[1]
 

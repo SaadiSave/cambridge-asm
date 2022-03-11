@@ -1,0 +1,43 @@
+name: Publish CLI
+
+on:
+  push:
+    tags:
+      - 'cli-[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    container: ghcr.io/saadisave/cambridge-asm-ci:latest
+    environment: Release
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Fetch tags
+        run: git fetch --unshallow
+
+      - name: Set release version
+        run: export RELEASE_VERSION=$(python3 .github/getversion-cli.py) && echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
+
+      - name: Run tests
+        run: cargo hack test --feature-powerset
+
+      - name: Cargo login
+        run: cargo login ${{ secrets.CARGO_API_TOKEN }}
+
+      - name: Publish crate
+        run: cd cambridge-asm-cli && cargo publish
+
+      - name: Build all targets
+        run: python3 .github/buildall.py
+
+      - name: Login
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+      - name: Release
+        run: gh release create cli-${{ env.RELEASE_VERSION }} -t "cambridge-asm-cli-${{ env.RELEASE_VERSION }}" release/*
