@@ -17,7 +17,7 @@ compile = ["serde", "bincode"]
 pest = "2.1"
 pest_derive = "2.1"
 log = "0.4"
-regex = "1.5.4"
+regex = "1.5"
 
 [dependencies.bincode]
 version = "2.0.0-rc.1"
