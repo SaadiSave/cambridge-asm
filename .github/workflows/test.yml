@@ -1,0 +1,28 @@
+name: Test
+
+on:
+  push:
+    paths:
+      - 'cambridge-asm/**'
+      - 'cambridge-asm-cli/**'
+  pull_request:
+    paths:
+      - 'cambridge-asm/**'
+      - 'cambridge-asm-cli/**'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: ghcr.io/saadisave/cambridge-asm-ci:latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Run in debug mode
+        run: cargo hack test --feature-powerset && cargo hack build --feature-powerset
+      
+      - name: Run in release mode
+        run: cargo hack test --release --feature-powerset && cargo hack build --release --feature-powerset
