@@ -94,19 +94,6 @@ checksum = "14c189c53d098945499cdfa7ecc63567cf3886b3332b312a5b4585d8d3a6a610"
 [[package]]
 name = "cambridge-asm"
 version = "0.12.1"
-dependencies = [
- "bincode",
- "log",
- "pest",
- "pest_derive",
- "regex",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "cambridge-asm"
-version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "061dd4eb1bbbce8dc4b3ed175f24cb7b5faa4cc8601a5d01dfa603898460e7c5"
 dependencies = [
@@ -119,11 +106,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "cambridge-asm"
+version = "0.12.2"
+dependencies = [
+ "bincode",
+ "log",
+ "pest",
+ "pest_derive",
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cambridge-asm-cli"
 version = "0.12.0"
 dependencies = [
  "bincode",
- "cambridge-asm 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cambridge-asm 0.12.1",
  "clap",
  "env_logger",
  "ron",
