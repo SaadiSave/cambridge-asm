@@ -15,6 +15,7 @@ env:
 
 jobs:
   test:
+    name: Test
     runs-on: ubuntu-latest
     container: ghcr.io/saadisave/cambridge-asm-ci:latest
 

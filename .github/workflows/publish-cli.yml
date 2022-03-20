@@ -10,7 +10,7 @@ env:
 
 jobs:
   publish:
-    name: Publish
+    name: Publish CLI
     runs-on: ubuntu-latest
     container: ghcr.io/saadisave/cambridge-asm-ci:latest
     environment: Release

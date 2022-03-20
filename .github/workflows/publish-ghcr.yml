@@ -1,4 +1,4 @@
-name: Publish ghcr
+name: Publish GHCR
 
 on:
   push:
@@ -10,7 +10,7 @@ env:
 
 jobs:
   publish:
-    name: Publish
+    name: Publish GHCR
     runs-on: ubuntu-latest
     environment: Release
 
