@@ -232,15 +232,19 @@ fn set_log_level(v: usize) {
 fn handle_panic(info: &std::panic::PanicInfo) {
     if let Some(l) = info.location() {
         println!(
-            "Program panicked (crashed). Panic occurred at {}:{} -",
+            "Program panicked (crashed). Panic occurred at {}:{}",
             l.file(),
             l.line()
         );
     } else {
-        println!("Program panicked (crashed). Unable to locate the source of the panic -");
+        println!("Program panicked (crashed). Unable to locate the source of the panic.");
     }
 
-    if let Some(msg) = info.payload().downcast_ref::<String>() {
-        println!("{msg}\n\nTo debug, try increasing the verbosity by passing -v flags if the error message is unclear.\nOpen an issue on github if the panic appears to be an internal error.");
+    if let Some(msg) = info.payload().downcast_ref::<&str>() {
+        println!("\n'{msg}'\n");
+    } else if let Some(msg) = info.payload().downcast_ref::<String>() {
+        println!("\n'{msg}'\n");
     }
+
+    println!("To debug, try increasing the verbosity by passing -v flags if the error message is unclear.\nOpen an issue on github if the panic appears to be an internal error.");
 }
