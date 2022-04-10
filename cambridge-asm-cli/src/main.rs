@@ -12,6 +12,7 @@ use cambridge_asm::{
 };
 use clap::{ArgEnum, Parser, Subcommand};
 use std::ffi::OsString;
+use cambridge_asm::exec::Io;
 
 #[cfg(feature = "cambridge")]
 const INST_SET: InstSet = parse::get_fn;
@@ -99,6 +100,8 @@ fn main() -> std::io::Result<()> {
     #[cfg(not(debug_assertions))]
     std::panic::set_hook(Box::new(handle_panic));
 
+    let io = Io::default();
+
     match cli.commands {
         Commands::Run {
             path,
@@ -109,27 +112,27 @@ fn main() -> std::io::Result<()> {
             use InFormats::*;
 
             let parser: Box<dyn FnOnce(Vec<u8>, InstSet) -> Executor> = match format {
-                Pasm => Box::new(|v, set| parse::parse(String::from_utf8_lossy(&v), set)),
+                Pasm => Box::new(|v, set| parse::parse(String::from_utf8_lossy(&v), set, io)),
                 Json => Box::new(|v, set| {
                     serde_json::from_str::<CompiledProg>(&String::from_utf8_lossy(&v))
                         .unwrap()
-                        .to_executor(set)
+                        .to_executor(set, io)
                 }),
                 Ron => Box::new(|v, set| {
                     ron::from_str::<CompiledProg>(&String::from_utf8_lossy(&v))
                         .unwrap()
-                        .to_executor(set)
+                        .to_executor(set, io)
                 }),
                 Yaml => Box::new(|v, set| {
                     serde_yaml::from_str::<CompiledProg>(&String::from_utf8_lossy(&v))
                         .unwrap()
-                        .to_executor(set)
+                        .to_executor(set, io)
                 }),
                 Bin => Box::new(|v, set| {
                     bincode::decode_from_slice::<CompiledProg, _>(&v, bincode::config::standard())
                         .unwrap()
                         .0
-                        .to_executor(set)
+                        .to_executor(set, io)
                 }),
             };
 
