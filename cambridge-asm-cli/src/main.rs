@@ -22,7 +22,7 @@ const INST_SET: InstSet = parse::get_fn_ext;
 
 #[derive(Parser)]
 #[clap(name = "Cambridge Pseudoassembly Interpreter")]
-#[clap(version = "0.12")]
+#[clap(version = "0.13")]
 #[clap(author = "Saadi Save <github.com/SaadiSave>")]
 #[clap(about = "Run pseudoassembly from Cambridge International syllabus 9618 (2021)")]
 struct Cli {
@@ -34,44 +34,44 @@ struct Cli {
 enum Commands {
     /// Run compiled or plaintext pseudoassembly
     Run {
-        #[clap(help = "Path to the input file containing compiled or plaintext pseudoassembly")]
+        /// Path to the input file containing compiled or plaintext pseudoassembly
         path: OsString,
 
+        /// Increase logging level
         #[clap(short = 'v', long = "verbose", parse(from_occurrences))]
-        #[clap(help = "Increase logging level")]
         verbosity: usize,
 
+        /// Show execution time
         #[clap(short = 't', long = "bench")]
-        #[clap(help = "Show execution time")]
         bench: bool,
 
+        /// Format of input file
         #[clap(arg_enum)]
-        #[clap(default_value_t = InFormats::Pasm)]
         #[clap(short = 'f', long = "format")]
-        #[clap(help = "Format of input file")]
+        #[clap(default_value_t = InFormats::Pasm)]
         format: InFormats,
     },
     /// Compile pseudoassembly
     Compile {
-        #[clap(help = "Path to the input file containing pseudoassembly")]
+        /// Path to the input file containing pseudoassembly
         input: OsString,
 
+        /// Path to output file
         #[clap(short = 'o', long = "output")]
-        #[clap(help = "Path to output file")]
         output: Option<OsString>,
 
+        /// Increase logging level
         #[clap(short = 'v', long = "verbose", parse(from_occurrences))]
-        #[clap(help = "Increase logging level")]
         verbosity: usize,
 
+        /// Format of output file
         #[clap(arg_enum)]
         #[clap(short = 'f', long = "format")]
-        #[clap(help = "Format of output file")]
         #[clap(default_value_t = OutFormats::Json)]
         format: OutFormats,
 
+        /// Minify output
         #[clap(short = 'm', long = "minify")]
-        #[clap(help = "Minify output")]
         minify: bool,
     },
 }
