@@ -180,7 +180,7 @@ inst!(
 
             str.trim()
                 .parse()
-                .unwrap_or_else(|_| panic!("'{str}' is not an integer"))
+                .unwrap_or_else(|_| panic!("{str:?} is not an integer"))
         }
 
         match op {
