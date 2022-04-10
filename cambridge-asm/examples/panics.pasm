@@ -1,0 +1,5 @@
+LDI PTR
+END
+
+
+PTR: 0

@@ -7,9 +7,6 @@ use crate::{exec::PasmError::*, inst};
 use std::io::Read;
 
 #[cfg(not(feature = "cambridge"))]
-use std::fmt::Display;
-
-#[cfg(not(feature = "cambridge"))]
 use crate::exec::{Context, Op, PasmError, PasmResult};
 
 inst!(
@@ -50,7 +47,7 @@ inst!(
                 #[allow(clippy::cast_possible_truncation)]
                 let out = x as u8 as char;
 
-                print!("{out}");
+                write!(ctx.io.write, "{out}").expect("Unable to write to io");
             }
             src if src.is_usizeable() => {
                 let src = src.get_val(ctx)?;
@@ -62,7 +59,7 @@ inst!(
                 #[allow(clippy::cast_possible_truncation)]
                 let out = src as u8 as char;
 
-                print!("{out}");
+                write!(ctx.io.write, "{out}").expect("Unable to write to io");
             }
             _ => return Err(InvalidOperand),
         }
@@ -85,18 +82,20 @@ inst!(
             Null => {
                 let mut buf = [0; 1];
 
-                std::io::stdin()
+                ctx.io
+                    .read
                     .read_exact(&mut buf)
-                    .expect("Unable to read STDIN");
+                    .expect("Unable to read from io");
 
                 ctx.acc = buf[0] as usize;
             }
             dest if dest.is_read_write() => {
                 let mut buf = [0; 1];
 
-                std::io::stdin()
+                ctx.io
+                    .read
                     .read_exact(&mut buf)
-                    .expect("Unable to read STDIN");
+                    .expect("Unable to read from io");
 
                 ctx.modify(dest, |d| *d = buf[0] as usize)?;
             }
@@ -116,21 +115,25 @@ inst!(
     #[cfg(not(feature = "cambridge"))]
     dbg | ctx,
     op | {
-        let out: Box<dyn Display> = match op {
-            Null => Box::new(ctx),
-            src if src.is_usizeable() => Box::new(src.get_val(ctx)?),
-            MultiOp(ops) => Box::new({
-                for src in ops {
-                    if dbg(ctx, src).is_err() {
-                        return Err(InvalidMultiOp);
+        let out = match op {
+            Null => format!("{ctx:?}"),
+            src if src.is_usizeable() => format!("{}", src.get_val(ctx)?),
+            MultiOp(ops) if ops.iter().all(Op::is_usizeable) => ops
+                .iter()
+                .filter_map(|op| op.get_val(ctx).ok())
+                .enumerate()
+                .fold(String::new(), |acc, (idx, op)| {
+                    if idx == ops.len() - 1 {
+                        format!("{acc}{op}")
+                    } else {
+                        format!("{acc}{op}, ")
                     }
-                }
-                ""
-            }),
+                }),
+            MultiOp(_) => return Err(InvalidMultiOp),
             _ => return Err(InvalidOperand),
         };
 
-        println!("{out}");
+        writeln!(ctx.io.write, "{out}").expect("Unable to write to io");
     }
 );
 
@@ -145,21 +148,47 @@ inst!(
     #[cfg(not(feature = "cambridge"))]
     rin | ctx,
     op | {
-        fn input() -> usize {
-            let mut x = String::new();
+        const CR: u8 = 0xD;
+        const LF: u8 = 0xA;
 
-            std::io::stdin()
-                .read_line(&mut x)
-                .expect("Unable to read stdin");
+        fn read_line(reader: &mut impl std::io::Read, buf: &mut Vec<u8>) -> std::io::Result<()> {
+            let mut prev = 0;
+            let mut arr_buf = [0; 1];
+            loop {
+                reader.read_exact(&mut arr_buf)?;
 
-            x.trim()
+                buf.extend_from_slice(&arr_buf);
+
+                let current = arr_buf[0];
+
+                if current == LF || [prev, current] == [CR, LF] {
+                    break;
+                }
+
+                prev = arr_buf[0];
+            }
+
+            Ok(())
+        }
+
+        fn input(inp: &mut impl std::io::Read) -> usize {
+            let mut buf = Vec::new();
+
+            read_line(inp, &mut buf).expect("Unable to read stdin");
+
+            let str = String::from_utf8_lossy(&buf);
+
+            str.trim()
                 .parse()
-                .unwrap_or_else(|_| panic!("'{x}' is not an integer"))
+                .unwrap_or_else(|_| panic!("'{str}' is not an integer"))
         }
 
         match op {
-            Null => ctx.acc = input(),
-            dest if dest.is_read_write() => ctx.modify(dest, |d| *d = input())?,
+            Null => ctx.acc = input(&mut ctx.io.read),
+            dest if dest.is_read_write() => {
+                let input = input(&mut ctx.io.read);
+                ctx.modify(dest, |d| *d = input)?;
+            }
             _ => return Err(InvalidOperand),
         }
     }

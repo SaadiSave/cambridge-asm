@@ -53,7 +53,7 @@ pub type PasmResult = Result<(), PasmError>;
 pub struct Source(Vec<String>);
 
 impl Source {
-    pub fn handle_err(&self, err: &PasmError, pos: usize) {
+    pub fn handle_err(&self, write: &mut impl std::io::Write, err: &PasmError, pos: usize) {
         let mk_line =
             |inst: &str, num: usize| format!("\n{num:>w$}    {inst}", w = self.whitespace());
 
@@ -81,7 +81,7 @@ impl Source {
                 break;
             }
         }
-        println!("{}", out);
+        writeln!(write, "{}", out).unwrap();
     }
 
     fn whitespace(&self) -> usize {

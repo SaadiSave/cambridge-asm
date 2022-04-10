@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::exec::{Context, Executor, Inst, MemEntry, Memory, Op, OpFun, Source};
+use crate::exec::{Context, Executor, Inst, Io, MemEntry, Memory, Op, OpFun, Source};
 use pest::{
     iterators::{Pair, Pairs},
     Parser,
@@ -52,7 +52,7 @@ impl StrInst {
     }
 }
 
-pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
+pub fn parse(prog: impl Deref<Target=str>, inst_set: InstSet, io: Io) -> Executor {
     let mut line_ending = if prog.contains("\r\n") {
         // Windows
         r"\r\n"
@@ -123,7 +123,7 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
         .map(|Ir { addr, inst }| (addr, inst))
         .collect();
 
-    let exe = Executor::new(src, prog, Context::new(Memory::new(mem)));
+    let exe = Executor::new(src, prog, Context::with_io(Memory::new(mem), io));
 
     info!("Executor created");
     debug!("{}\n", exe);
@@ -132,12 +132,12 @@ pub fn parse(prog: impl Deref<Target = str>, inst_set: InstSet) -> Executor {
     exe
 }
 
-pub fn from_file(path: impl AsRef<Path>, inst_set: InstSet) -> Executor {
+pub fn from_file(path: impl AsRef<Path>, inst_set: InstSet, io: Io) -> Executor {
     let prog = std::fs::read_to_string(path).expect("Cannot read file");
 
     info!("File read complete.");
 
-    parse(prog, inst_set)
+    parse(prog, inst_set, io)
 }
 
 /// Macro to generate an instruction set
@@ -553,7 +553,7 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
 
 #[cfg(test)]
 mod parse_tests {
-    use crate::parse::parse;
+    use crate::{make_io, parse::parse};
     use std::time::Instant;
 
     #[cfg(feature = "cambridge")]
@@ -569,11 +569,17 @@ mod parse_tests {
 
     #[test]
     fn test() {
+        macro_rules! sink {
+            () => {
+                $crate::make_io!(std::io::stdin(), std::io::sink())
+            };
+        }
+
         #[cfg(feature = "cambridge")]
-        let parser = |prog: &str| parse(prog, crate::parse::get_fn);
+            let parser = |prog: &str| parse(prog, crate::parse::get_fn, sink!());
 
         #[cfg(not(feature = "cambridge"))]
-        let parser = |prog: &str| parse(prog, crate::parse::get_fn_ext);
+            let parser = |prog: &str| parse(prog, crate::parse::get_fn_ext, sink!());
 
         for (prog, acc) in PROGRAMS {
             let t = Instant::now();
@@ -583,5 +589,16 @@ mod parse_tests {
             assert_eq!(exec.ctx.acc, acc);
             println!("{:?} elapsed", t.elapsed());
         }
+    }
+
+    #[test]
+    #[should_panic]
+    fn panics() {
+        let mut exec = parse(
+            include_str!("../examples/panics.pasm"),
+            crate::parse::get_fn,
+            make_io!(std::io::stdin(), std::io::sink()),
+        );
+        exec.exec();
     }
 }

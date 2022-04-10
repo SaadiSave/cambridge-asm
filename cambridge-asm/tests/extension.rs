@@ -2,7 +2,7 @@
 extern crate cambridge_asm;
 
 inst! {
-    custom | ctx | override { println!("This is a custom instruction"); ctx.mar += 1; ctx.gprs[0] = 20;}
+    custom | ctx | override { writeln!(ctx.io.write, "This is a custom instruction").expect("Unable to write to io"); ctx.mar += 1; ctx.gprs[0] = 20;}
 }
 
 extend! {
@@ -29,7 +29,11 @@ END
 
 NONE:
 "#;
-    let mut e = cambridge_asm::parse::parse(PROG, get_instruction);
+    let mut e = cambridge_asm::parse::parse(
+        PROG,
+        get_instruction,
+        make_io!(std::io::stdin(), std::io::sink()),
+    );
     e.exec();
     assert_eq!(e.ctx.acc, 65);
     assert_eq!(e.ctx.gprs[0], 20);

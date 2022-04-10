@@ -1,5 +1,5 @@
 use crate::{
-    exec::{Context, Executor, Inst, MemEntry, Memory, Op},
+    exec::{Context, Executor, Inst, Io, MemEntry, Memory, Op},
     parse::{get_insts, get_mems, process_inst_links, InstSet, Mem, PasmParser, Rule, StrInst},
 };
 use pest::Parser;
@@ -39,7 +39,7 @@ impl CompiledProg {
         Self { prog, mem }
     }
 
-    pub fn to_executor(self, inst_set: InstSet) -> Executor {
+    pub fn to_executor(self, inst_set: InstSet, io: Io) -> Executor {
         let prog = self
             .prog
             .into_iter()
@@ -51,7 +51,7 @@ impl CompiledProg {
             })
             .collect();
 
-        Executor::new("", prog, Context::new(self.mem))
+        Executor::new("", prog, Context::with_io(self.mem, io))
     }
 }
 
@@ -269,8 +269,10 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
 
 #[cfg(test)]
 mod compile_tests {
-    use super::compile;
-    use crate::compile::CompiledProg;
+    use crate::{
+        compile::{compile, CompiledProg},
+        make_io,
+    };
 
     #[cfg(feature = "cambridge")]
     const PROGRAMS: [(&str, usize); 1] = [(include_str!("../examples/hello.pasm"), 207)];
@@ -300,7 +302,7 @@ mod compile_tests {
             let t = std::time::Instant::now();
             let mut exe = serde_json::from_str::<CompiledProg>(&ser)
                 .unwrap()
-                .to_executor(inst_set);
+                .to_executor(inst_set, make_io!(std::io::stdin(), std::io::sink()));
             println!("{:?} elapsed", t.elapsed());
 
             exe.exec();

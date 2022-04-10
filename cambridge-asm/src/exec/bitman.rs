@@ -106,16 +106,7 @@ pub fn xor(ctx: &mut Context, op: &Op) -> PasmResult {
 pub fn lsl(ctx: &mut Context, op: &Op) -> PasmResult {
     #[allow(clippy::cast_possible_truncation)]
     fn checked_shl(dest: &mut usize, val: usize, mar: usize) {
-        #[cfg(target_pointer_width = "64")]
         if let Some(res) = dest.checked_shl(val as u32) {
-            *dest = res;
-        } else {
-            warn!("Shift left overflow detected at line {}", mar + 1);
-            *dest <<= val;
-        }
-
-        #[cfg(target_pointer_width = "32")]
-        if let Some(res) = dest.checked_shl(val as u16) {
             *dest = res;
         } else {
             warn!("Shift left overflow detected at line {}", mar + 1);

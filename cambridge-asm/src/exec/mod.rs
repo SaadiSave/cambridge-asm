@@ -6,6 +6,7 @@
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Display, Formatter, Result as FmtResult},
+    io as stdio,
 };
 
 /// # Arithmetic
@@ -47,6 +48,36 @@ pub use memory::{MemEntry, Memory};
 
 pub use inst::{Inst, Op, OpFun};
 
+pub struct Io {
+    pub read: Box<dyn stdio::Read>,
+    pub write: Box<dyn stdio::Write>,
+}
+
+#[macro_export]
+macro_rules! make_io {
+    ($read:expr, $write:expr) => {{
+        $crate::exec::Io {
+            read: Box::new($read),
+            write: Box::new($write),
+        }
+    }};
+}
+
+impl Debug for Io {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str("")
+    }
+}
+
+impl Default for Io {
+    fn default() -> Self {
+        Self {
+            read: Box::new(stdio::stdin()),
+            write: Box::new(stdio::stdout()),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct Context {
     pub cmp: bool,
@@ -58,13 +89,22 @@ pub struct Context {
     pub ret: usize,
     pub gprs: [usize; 30],
     pub end: bool,
+    pub io: Io,
 }
 
 impl Context {
     pub fn new(mem: Memory) -> Self {
         Self {
             mem,
-            ..Context::default()
+            ..Self::default()
+        }
+    }
+
+    pub fn with_io(mem: Memory, io: Io) -> Self {
+        Self {
+            mem,
+            io,
+            ..Self::default()
         }
     }
 
@@ -188,7 +228,8 @@ impl Executor {
             match (inst.opfun)(&mut self.ctx, &inst.op) {
                 Ok(_) => (),
                 Err(e) => {
-                    self.source.handle_err(&e, self.ctx.mar);
+                    self.source
+                        .handle_err(&mut self.ctx.io.write, &e, self.ctx.mar);
                     return;
                 }
             }
