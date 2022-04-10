@@ -177,10 +177,9 @@ inst!(
             read_line(inp, &mut buf).expect("Unable to read stdin");
 
             let str = String::from_utf8_lossy(&buf);
-
-            str.trim()
-                .parse()
-                .unwrap_or_else(|_| panic!("{str:?} is not an integer"))
+            let str = str.trim();
+            str.parse()
+                .unwrap_or_else(|e| panic!("Unable to parse {str:?} because {e}"))
         }
 
         match op {
