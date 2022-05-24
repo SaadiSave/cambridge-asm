@@ -1,13 +1,15 @@
 #[macro_use]
 extern crate cambridge_asm;
 
+use cambridge_asm::parse::Core;
+
 inst! {
     custom | ctx | override { writeln!(ctx.io.write, "This is a custom instruction").expect("Unable to write to io"); ctx.mar += 1; ctx.gprs[0] = 20;}
 }
 
 extend! {
-    get_instruction extends cambridge_asm::parse::get_fn; {
-        "CUSTOM" => custom,
+    pub(self) Custom extends Core {
+        CUSTOM => custom,
     }
 }
 
@@ -29,9 +31,8 @@ END
 
 NONE:
 "#;
-    let mut e = cambridge_asm::parse::parse(
+    let mut e = cambridge_asm::parse::jit::<Custom, &str>(
         PROG,
-        get_instruction,
         make_io!(std::io::stdin(), std::io::sink()),
     );
     e.exec();

@@ -3,20 +3,26 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::exec::{Context, Executor, Inst, Io, MemEntry, Memory, Op, OpFun, Source};
+use crate::inst::Inst;
+use crate::{
+    exec::{Context, Executor, Io, MemEntry, Memory, Source},
+    extend,
+    inst::{InstSet, Op},
+    inst_set,
+};
 use pest::{
     iterators::{Pair, Pairs},
     Parser,
 };
 use pest_derive::Parser;
 use regex::Regex;
+use std::fmt::Display;
+use std::str::FromStr;
 use std::{collections::BTreeMap, ops::Deref, path::Path};
 
 #[derive(Parser)]
 #[grammar = "pasm.pest"]
 pub(crate) struct PasmParser;
-
-pub type InstSet = fn(&str) -> Result<OpFun, String>;
 
 pub(crate) struct Mem {
     pub addr: String,
@@ -29,13 +35,21 @@ impl Mem {
     }
 }
 
-struct Ir {
+pub struct Ir<T>
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
+{
     pub addr: usize,
-    pub inst: Inst,
+    pub inst: Inst<T>,
 }
 
-impl Ir {
-    pub fn new(addr: usize, inst: Inst) -> Self {
+impl<T> Ir<T>
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
+{
+    pub fn new(addr: usize, inst: Inst<T>) -> Self {
         Self { addr, inst }
     }
 }
@@ -52,7 +66,12 @@ impl StrInst {
     }
 }
 
-pub fn parse(prog: impl Deref<Target=str>, inst_set: InstSet, io: Io) -> Executor {
+pub fn parse<T, P>(prog: P) -> (Vec<Ir<T>>, BTreeMap<usize, MemEntry>, Source)
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
+        P: Deref<Target=str>,
+{
     let mut line_ending = if prog.contains("\r\n") {
         // Windows
         r"\r\n"
@@ -104,7 +123,7 @@ pub fn parse(prog: impl Deref<Target=str>, inst_set: InstSet, io: Io) -> Executo
     let insts = get_insts(pairs.0);
 
     debug!("Processing instructions into IR...");
-    let mut insts = process_insts(insts, inst_set);
+    let mut insts = process_insts::<T>(insts);
 
     debug!("Memory as detected:");
     debug!("Addr\tData");
@@ -112,15 +131,22 @@ pub fn parse(prog: impl Deref<Target=str>, inst_set: InstSet, io: Io) -> Executo
     let mems = get_mems(pairs.1);
 
     debug!("Processing memory into IR...");
-    let mems = process_mems(&mems, &mut insts);
+    let mems = process_mems::<T>(&mems, &mut insts);
 
-    info!("Parsing complete. Creating executor...");
+    (insts, BTreeMap::from_iter(mems), src)
+}
 
-    let mem = BTreeMap::from_iter(mems);
+pub fn jit<T, P>(prog: P, io: Io) -> Executor
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
+        P: Deref<Target=str>,
+{
+    let (insts, mem, src) = parse(prog);
 
     let prog = insts
         .into_iter()
-        .map(|Ir { addr, inst }| (addr, inst))
+        .map(|Ir::<T> { addr, inst }| (addr, inst.to_exec_inst()))
         .collect();
 
     let exe = Executor::new(src, prog, Context::with_io(Memory::new(mem), io));
@@ -132,143 +158,60 @@ pub fn parse(prog: impl Deref<Target=str>, inst_set: InstSet, io: Io) -> Executo
     exe
 }
 
-pub fn from_file(path: impl AsRef<Path>, inst_set: InstSet, io: Io) -> Executor {
+pub fn from_file<T, P>(path: P, io: Io) -> Executor
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
+        P: AsRef<Path>,
+{
     let prog = std::fs::read_to_string(path).expect("Cannot read file");
 
     info!("File read complete.");
 
-    parse(prog, inst_set, io)
-}
-
-/// Macro to generate an instruction set
-#[macro_export]
-macro_rules! inst_set {
-    ($(#[$outer:meta])* $vis:vis $name:ident { $( $inst:pat => $func:expr ),+ $(,)? }) => {
-        $(#[$outer])*
-        $vis fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
-            Ok(match op {
-                $( $inst => $func,)+
-                _ => return Err(format!("{op} is not an operation")),
-            })
-        }
-    };
-    ($(#[$outer:meta])* $vis:vis $name:ident $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
-        $(#[$outer])*
-        $vis fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
-            $using
-            Ok(match op {
-                $( $inst => $func,)+
-                _ => return Err(format!("{op} is not an operation")),
-            })
-        }
-    };
-    ($(#[$outer:meta])* $name:ident { $( $inst:pat => $func:expr ),+ $(,)? }) => {
-        $(#[$outer])*
-        fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
-            Ok(match op {
-                $( $inst => $func,)+
-                _ => return Err(format!("{op} is not an operation")),
-            })
-        }
-    };
-    ($(#[$outer:meta])* $name:ident $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
-        $(#[$outer])*
-        fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
-            $using
-            Ok(match op {
-                $( $inst => $func,)+
-                _ => return Err(format!("{op} is not an operation")),
-            })
-        }
-    };
-}
-
-/// Macro to extend any base instruction set
-#[macro_export]
-macro_rules! extend {
-    ($(#[$outer:meta])* $vis:vis $name:ident extends $root:expr; { $( $inst:pat => $func:expr ),+ $(,)? }) => {
-        $(#[$outer])*
-        $vis fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
-            Ok(match op {
-                $( $inst => $func,)+
-                _ => $root(op)?,
-            })
-        }
-    };
-    ($(#[$outer:meta])* $vis:vis $name:ident extends $root:expr, $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
-        $(#[$outer])*
-        $vis fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
-            $using
-            Ok(match op {
-                $( $inst => $func,)+
-                _ => $root(op)?,
-            })
-        }
-    };
-    ($(#[$outer:meta])* $name:ident extends $root:expr; { $( $inst:pat => $func:expr ),+ $(,)? }) => {
-        $(#[$outer])*
-        fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
-            Ok(match op {
-                $( $inst => $func,)+
-                _ => $root(op)?,
-            })
-        }
-    };
-    ($(#[$outer:meta])* $name:ident extends $root:expr, $using:item { $( $inst:pat => $func:expr ),+ $(,)? }) => {
-        $(#[$outer])*
-        fn $name(op: &str) -> Result<$crate::exec::OpFun, String> {
-            $using
-            Ok(match op {
-                $( $inst => $func,)+
-                _ => $root(op)?,
-            })
-        }
-    };
+    jit::<T, String>(prog, io)
 }
 
 inst_set! {
-    // Base instruction set
-    pub get_fn use crate::exec::{mov, cmp, io, arith, bitman}; {
-        "LDM" => mov::ldm,
-        "LDD" => mov::ldd,
-        "LDI" => mov::ldi,
-        "LDX" => mov::ldx,
-        "LDR" => mov::ldr,
-        "MOV" => mov::mov,
-        "STO" => mov::sto,
+    pub Core use crate::exec::{mov, cmp, io, arith, bitman}; {
+        LDM => mov::ldm,
+        LDD => mov::ldd,
+        LDI => mov::ldi,
+        LDX => mov::ldx,
+        LDR => mov::ldr,
+        MOV => mov::mov,
+        STO => mov::sto,
 
-        "CMP" => cmp::cmp,
-        "JPE" => cmp::jpe,
-        "JPN" => cmp::jpn,
-        "JMP" => cmp::jmp,
-        "CMI" => cmp::cmi,
+        CMP => cmp::cmp,
+        JPE => cmp::jpe,
+        JPN => cmp::jpn,
+        JMP => cmp::jmp,
+        CMI => cmp::cmi,
 
-        "IN" => io::inp,
-        "OUT" => io::out,
-        "END" => io::end,
+        IN => io::inp,
+        OUT => io::out,
+        END => io::end,
 
-        "INC" => arith::inc,
-        "DEC" => arith::dec,
-        "ADD" => arith::add,
-        "SUB" => arith::sub,
+        INC => arith::inc,
+        DEC => arith::dec,
+        ADD => arith::add,
+        SUB => arith::sub,
 
-        "AND" => bitman::and,
-        "OR" => bitman::or,
-        "XOR" => bitman::xor,
-        "LSL" => bitman::lsl,
-        "LSR" => bitman::lsr,
+        AND => bitman::and,
+        OR => bitman::or,
+        XOR => bitman::xor,
+        LSL => bitman::lsl,
+        LSR => bitman::lsr,
     }
 }
 
 extend! {
-    // Extended instruction set
     #[cfg(not(feature = "cambridge"))]
-    pub get_fn_ext extends get_fn, use crate::exec::io; {
-        "DBG" => io::dbg,
-        "RIN" => io::rin,
-        "CALL" => io::call,
-        "RET" => io::ret,
-        "NOP" => io::nop,
+    pub Extended extends Core use crate::exec::io; {
+        DBG => io::dbg,
+        RIN => io::rin,
+        CALL => io::call,
+        RET => io::ret,
+        NOP => io::nop,
     }
 }
 
@@ -319,7 +262,7 @@ pub(crate) fn get_insts(inst: Pairs<Rule>) -> Vec<StrInst> {
     out
 }
 
-pub(crate) fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op))> {
+fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op))> {
     let mut links = Vec::new();
 
     let inst_list: Vec<_> = insts
@@ -394,14 +337,20 @@ pub(crate) fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op
     ir
 }
 
-fn process_insts(insts: Vec<StrInst>, inst_set: fn(&str) -> Result<OpFun, String>) -> Vec<Ir> {
+pub(crate) fn process_insts<T>(insts: Vec<StrInst>) -> Vec<Ir<T>>
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
+{
     process_inst_links(insts)
         .into_iter()
         .map(|i| {
             Ir::new(
                 i.0,
                 Inst::new(
-                    inst_set(&(i.1).0.to_uppercase()).unwrap_or_else(|s| panic!("{s}")),
+                    (&(i.1).0.to_uppercase())
+                        .parse()
+                        .unwrap_or_else(|s| panic!("{s}")),
                     (i.1).1,
                 ),
             )
@@ -451,7 +400,11 @@ pub(crate) fn get_mems(mem: Pairs<Rule>) -> Vec<Mem> {
     out
 }
 
-fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
+pub(crate) fn process_mems<T>(mems: &[Mem], prog: &mut [Ir<T>]) -> Vec<(usize, MemEntry)>
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
+{
     let mut links = Vec::new();
 
     for (i, Mem { addr, .. }) in mems.iter().enumerate() {
@@ -553,19 +506,12 @@ fn process_mems(mems: &[Mem], prog: &mut Vec<Ir>) -> Vec<(usize, MemEntry)> {
 
 #[cfg(test)]
 mod parse_tests {
-    use crate::{make_io, parse::parse};
+    use crate::{
+        make_io,
+        parse::{self, jit},
+        PROGRAMS,
+    };
     use std::time::Instant;
-
-    #[cfg(feature = "cambridge")]
-    const PROGRAMS: [(&str, usize); 1] = [(include_str!("../examples/hello.pasm"), 207)];
-
-    #[cfg(not(feature = "cambridge"))]
-    const PROGRAMS: [(&str, usize); 4] = [
-        (include_str!("../examples/division.pasm"), 65),
-        (include_str!("../examples/multiplication.pasm"), 15625),
-        (include_str!("../examples/hello.pasm"), 207),
-        (include_str!("../examples/functions.pasm"), 65),
-    ];
 
     #[test]
     fn test() {
@@ -575,15 +521,15 @@ mod parse_tests {
             };
         }
 
-        #[cfg(feature = "cambridge")]
-            let parser = |prog: &str| parse(prog, crate::parse::get_fn, sink!());
-
-        #[cfg(not(feature = "cambridge"))]
-            let parser = |prog: &str| parse(prog, crate::parse::get_fn_ext, sink!());
-
         for (prog, acc) in PROGRAMS {
             let t = Instant::now();
-            let mut exec = parser(prog);
+
+            #[cfg(feature = "cambridge")]
+                let mut exec = jit::<parse::Core, &str>(prog, sink!());
+
+            #[cfg(not(feature = "cambridge"))]
+                let mut exec = jit::<parse::Extended, &str>(prog, sink!());
+
             println!("{:?} elapsed", t.elapsed());
             exec.exec();
             assert_eq!(exec.ctx.acc, acc);
@@ -594,9 +540,8 @@ mod parse_tests {
     #[test]
     #[should_panic]
     fn panics() {
-        let mut exec = parse(
+        let mut exec = jit::<parse::Core, &str>(
             include_str!("../examples/panics.pasm"),
-            crate::parse::get_fn,
             make_io!(std::io::stdin(), std::io::sink()),
         );
         exec.exec();

@@ -3,11 +3,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#![allow(clippy::module_name_repetitions)]
+
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Display, Formatter, Result as FmtResult},
     io as stdio,
 };
+use crate::inst::Op;
 
 /// # Arithmetic
 /// Module for arithmetic operations
@@ -40,13 +43,13 @@ mod error;
 mod memory;
 
 #[allow(clippy::enum_glob_use)]
-mod inst;
+pub mod inst;
 
 pub use error::{PasmError, PasmResult, Source};
 
 pub use memory::{MemEntry, Memory};
 
-pub use inst::{Inst, Op, OpFun};
+pub use inst::{ExecInst, ExecFunc};
 
 pub struct Io {
     pub read: Box<dyn stdio::Read>,
@@ -190,7 +193,7 @@ impl Display for Context {
     }
 }
 
-pub type ExTree = BTreeMap<usize, Inst>;
+pub type ExTree = BTreeMap<usize, ExecInst>;
 
 pub struct Executor {
     pub source: Source,
@@ -225,7 +228,7 @@ impl Executor {
                 panic!("Unable to fetch instruction. Please report this as a bug with full debug logs attached.")
             };
 
-            match (inst.opfun)(&mut self.ctx, &inst.op) {
+            match (inst.func)(&mut self.ctx, &inst.op) {
                 Ok(_) => (),
                 Err(e) => {
                     self.source
@@ -248,7 +251,7 @@ impl Executor {
 impl Display for Executor {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.write_str("Executor {\n")?;
-        for (addr, Inst { op, .. }) in &self.prog {
+        for (addr, ExecInst { op, .. }) in &self.prog {
             f.write_fmt(format_args!("{addr:>6}: {op}\n", op = op.to_string()))?;
         }
         f.write_str("}")
@@ -264,7 +267,7 @@ impl Debug for Executor {
                 &self
                     .prog
                     .iter()
-                    .map(|(addr, Inst { op, .. })| (addr, op))
+                    .map(|(addr, ExecInst { op, .. })| (addr, op))
                     .collect::<Vec<_>>(),
             )
             .field("ctx", &self.ctx)
@@ -278,23 +281,23 @@ impl Debug for Executor {
 fn exec() {
     use std::collections::BTreeMap;
 
-    let prog: BTreeMap<usize, Inst> = BTreeMap::from(
+    let prog: BTreeMap<usize, ExecInst> = BTreeMap::from(
         // Division algorithm from pg 101 of textbook
         [
-            (0, Inst::new(mov::ldd, "200".into())),
-            (1, Inst::new(mov::sto, "202".into())),
-            (2, Inst::new(mov::sto, "203".into())),
-            (3, Inst::new(mov::ldd, "202".into())),
-            (4, Inst::new(arith::inc, "ACC".into())),
-            (5, Inst::new(mov::sto, "202".into())),
-            (6, Inst::new(mov::ldd, "203".into())),
-            (7, Inst::new(arith::add, "201".into())),
-            (8, Inst::new(mov::sto, "203".into())),
-            (9, Inst::new(cmp::cmp, "204".into())),
-            (10, Inst::new(cmp::jpn, "3".into())),
-            (11, Inst::new(mov::ldd, "202".into())),
-            (12, Inst::new(io::out, "".into())),
-            (13, Inst::new(io::end, "".into())),
+            (0, ExecInst::new(mov::ldd, "200".into())),
+            (1, ExecInst::new(mov::sto, "202".into())),
+            (2, ExecInst::new(mov::sto, "203".into())),
+            (3, ExecInst::new(mov::ldd, "202".into())),
+            (4, ExecInst::new(arith::inc, "ACC".into())),
+            (5, ExecInst::new(mov::sto, "202".into())),
+            (6, ExecInst::new(mov::ldd, "203".into())),
+            (7, ExecInst::new(arith::add, "201".into())),
+            (8, ExecInst::new(mov::sto, "203".into())),
+            (9, ExecInst::new(cmp::cmp, "204".into())),
+            (10, ExecInst::new(cmp::jpn, "3".into())),
+            (11, ExecInst::new(mov::ldd, "202".into())),
+            (12, ExecInst::new(io::out, "".into())),
+            (13, ExecInst::new(io::end, "".into())),
         ],
     );
 

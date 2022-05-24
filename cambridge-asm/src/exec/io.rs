@@ -7,7 +7,9 @@ use crate::{exec::PasmError::*, inst};
 use std::io::Read;
 
 #[cfg(not(feature = "cambridge"))]
-use crate::exec::{Context, Op, PasmError, PasmResult};
+use crate::exec::{Context, PasmError, PasmResult};
+#[cfg(not(feature = "cambridge"))]
+use crate::inst::Op;
 
 inst!(
     /// No-op
