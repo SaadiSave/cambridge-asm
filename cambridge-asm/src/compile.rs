@@ -44,9 +44,9 @@ impl CompiledProg {
     }
 
     pub fn to_executor<T>(self, io: Io) -> Executor
-        where
-            T: InstSet,
-            <T as FromStr>::Err: Display,
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
     {
         let prog = self
             .prog
@@ -70,10 +70,10 @@ impl CompiledProg {
 }
 
 pub fn compile<T, P>(prog: P) -> CompiledProg
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
-        P: Deref<Target=str>,
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
+    P: Deref<Target = str>,
 {
     let (insts, mem, _) = parse(prog);
 
@@ -95,10 +95,10 @@ pub fn compile<T, P>(prog: P) -> CompiledProg
 }
 
 pub fn from_file<T, P>(path: P) -> CompiledProg
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
-        P: AsRef<Path>,
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
+    P: AsRef<Path>,
 {
     let prog = std::fs::read_to_string(path).expect("Cannot read file");
     compile::<T, String>(prog)
@@ -108,8 +108,9 @@ pub fn from_file<T, P>(path: P) -> CompiledProg
 mod compile_tests {
     use crate::{
         compile::{compile, CompiledProg},
-        make_io, parse, PROGRAMS,
+        make_io, parse, TestStdout, PROGRAMS,
     };
+    use std::time::Instant;
 
     #[test]
     pub fn test() {
@@ -119,21 +120,31 @@ mod compile_tests {
         #[cfg(not(feature = "cambridge"))]
         type Parser = parse::Extended;
 
-        for (prog, res) in PROGRAMS {
-            let compiled = compile::<Parser, &str>(prog);
+        for (prog, res, out) in PROGRAMS {
+            let mut t = Instant::now();
+
+            let compiled = compile::<Parser, _>(prog);
             let ser = serde_json::to_string(&compiled).unwrap();
 
-            println!("{ser}");
+            println!("Compilation time: {:?}", t.elapsed());
 
-            let t = std::time::Instant::now();
+            t = Instant::now();
+            let s = TestStdout::new(vec![]);
+
             let mut exe = serde_json::from_str::<CompiledProg>(&ser)
                 .unwrap()
-                .to_executor::<Parser>(make_io!(std::io::stdin(), std::io::sink()));
-            println!("{:?} elapsed", t.elapsed());
+                .to_executor::<Parser>(make_io!(std::io::stdin(), s.clone()));
 
-            exe.exec();
+            println!("JIT time: {:?}", t.elapsed());
+
+            t = Instant::now();
+
+            exe.exec::<Parser>();
+
+            println!("Execution time: {:?}", t.elapsed());
+
             assert_eq!(exe.ctx.acc, res);
-            println!("{:?} elapsed", t.elapsed());
+            assert_eq!(s.to_vec(), out);
         }
     }
 }

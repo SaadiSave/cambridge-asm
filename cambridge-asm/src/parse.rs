@@ -3,11 +3,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::inst::Inst;
 use crate::{
     exec::{Context, Executor, Io, MemEntry, Memory, Source},
     extend,
-    inst::{InstSet, Op},
+    inst::{Inst, InstSet, Op},
     inst_set,
 };
 use pest::{
@@ -16,160 +15,7 @@ use pest::{
 };
 use pest_derive::Parser;
 use regex::Regex;
-use std::fmt::Display;
-use std::str::FromStr;
-use std::{collections::BTreeMap, ops::Deref, path::Path};
-
-#[derive(Parser)]
-#[grammar = "pasm.pest"]
-pub(crate) struct PasmParser;
-
-pub(crate) struct Mem {
-    pub addr: String,
-    pub data: Option<String>,
-}
-
-impl Mem {
-    pub fn new(addr: String, data: Option<String>) -> Self {
-        Self { addr, data }
-    }
-}
-
-pub struct Ir<T>
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
-{
-    pub addr: usize,
-    pub inst: Inst<T>,
-}
-
-impl<T> Ir<T>
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
-{
-    pub fn new(addr: usize, inst: Inst<T>) -> Self {
-        Self { addr, inst }
-    }
-}
-
-pub(crate) struct StrInst {
-    pub addr: Option<String>,
-    pub opcode: String,
-    pub op: Option<String>,
-}
-
-impl StrInst {
-    pub fn new(addr: Option<String>, opcode: String, op: Option<String>) -> Self {
-        Self { addr, opcode, op }
-    }
-}
-
-pub fn parse<T, P>(prog: P) -> (Vec<Ir<T>>, BTreeMap<usize, MemEntry>, Source)
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
-        P: Deref<Target=str>,
-{
-    let mut line_ending = if prog.contains("\r\n") {
-        // Windows
-        r"\r\n"
-    } else if prog.contains('\r') {
-        // For old Macs
-        r"\r"
-    } else {
-        // UNIX
-        r"\n"
-    };
-
-    let separator = Regex::new(&format!("{line_ending} *{line_ending} *")).unwrap();
-
-    line_ending = match line_ending {
-        r"\r\n" => "\r\n",
-        r"\n" => "\n",
-        r"\r" => "\r",
-        _ => unreachable!(),
-    };
-
-    let mut vec: Vec<_> = {
-        let v: Vec<_> = separator.split(&prog).collect();
-
-        assert!((v.len() >= 2), "Unable to parse. Your input may not contain blank line(s) between the program and the memory.");
-
-        v.iter()
-            .map(|&s| {
-                let mut x = s.to_string();
-                (!x.ends_with(line_ending)).then(|| x.push_str(line_ending));
-                x
-            })
-            .collect()
-    };
-
-    let mem = vec.pop().unwrap();
-    let prog = vec.join("");
-
-    let src = Source::from(&*prog);
-    debug!("This is your program code:\n{}", src);
-
-    let pairs = (
-        PasmParser::parse(Rule::prog, &prog).unwrap(),
-        PasmParser::parse(Rule::memory, &mem).unwrap(),
-    );
-
-    debug!("Instructions as detected:");
-    debug!("Addr\tOpcode\tOp");
-    debug!("{:-<7}\t{:-<7}\t{:-<7}", "-", "-", "-");
-    let insts = get_insts(pairs.0);
-
-    debug!("Processing instructions into IR...");
-    let mut insts = process_insts::<T>(insts);
-
-    debug!("Memory as detected:");
-    debug!("Addr\tData");
-    debug!("{:-<7}\t{:-<7}", "-", "-");
-    let mems = get_mems(pairs.1);
-
-    debug!("Processing memory into IR...");
-    let mems = process_mems::<T>(&mems, &mut insts);
-
-    (insts, BTreeMap::from_iter(mems), src)
-}
-
-pub fn jit<T, P>(prog: P, io: Io) -> Executor
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
-        P: Deref<Target=str>,
-{
-    let (insts, mem, src) = parse(prog);
-
-    let prog = insts
-        .into_iter()
-        .map(|Ir::<T> { addr, inst }| (addr, inst.to_exec_inst()))
-        .collect();
-
-    let exe = Executor::new(src, prog, Context::with_io(Memory::new(mem), io));
-
-    info!("Executor created");
-    debug!("{}\n", exe);
-    debug!("The initial context:\n{}\n", exe.ctx);
-
-    exe
-}
-
-pub fn from_file<T, P>(path: P, io: Io) -> Executor
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
-        P: AsRef<Path>,
-{
-    let prog = std::fs::read_to_string(path).expect("Cannot read file");
-
-    info!("File read complete.");
-
-    jit::<T, String>(prog, io)
-}
+use std::{collections::BTreeMap, fmt::Display, ops::Deref, path::Path, str::FromStr};
 
 inst_set! {
     pub Core use crate::exec::{mov, cmp, io, arith, bitman}; {
@@ -215,6 +61,159 @@ extend! {
     }
 }
 
+#[derive(Parser)]
+#[grammar = "pasm.pest"]
+struct PasmParser;
+
+struct Mem {
+    pub addr: String,
+    pub data: Option<String>,
+}
+
+impl Mem {
+    pub fn new(addr: String, data: Option<String>) -> Self {
+        Self { addr, data }
+    }
+}
+
+pub struct Ir<T>
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
+{
+    pub addr: usize,
+    pub inst: Inst<T>,
+}
+
+impl<T> Ir<T>
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
+{
+    pub fn new(addr: usize, inst: Inst<T>) -> Self {
+        Self { addr, inst }
+    }
+}
+
+pub(crate) struct StrInst {
+    pub addr: Option<String>,
+    pub opcode: String,
+    pub op: Option<String>,
+}
+
+impl StrInst {
+    pub fn new(addr: Option<String>, opcode: String, op: Option<String>) -> Self {
+        Self { addr, opcode, op }
+    }
+}
+
+pub fn parse<T, P>(prog: P) -> (Vec<Ir<T>>, BTreeMap<usize, MemEntry>, Source)
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
+    P: Deref<Target = str>,
+{
+    let mut line_ending = if prog.contains("\r\n") {
+        // Windows
+        r"\r\n"
+    } else if prog.contains('\r') {
+        // For old Macs
+        r"\r"
+    } else {
+        // UNIX
+        r"\n"
+    };
+
+    // unwrap is ok, because regex is valid
+    let separator = Regex::new(&format!("{line_ending} *{line_ending} *")).unwrap();
+
+    line_ending = match line_ending {
+        r"\r\n" => "\r\n",
+        r"\n" => "\n",
+        r"\r" => "\r",
+        _ => unreachable!(), // ok, because line_ending cannot be anything else
+    };
+
+    let mut vec: Vec<_> = {
+        let v: Vec<_> = separator.split(&prog).collect();
+
+        assert!((v.len() >= 2), "Unable to parse. Your input may not contain blank line(s) between the program and the memory.");
+
+        v.iter()
+            .map(|&s| {
+                let mut x = s.to_string();
+                (!x.ends_with(line_ending)).then(|| x.push_str(line_ending));
+                x
+            })
+            .collect()
+    };
+
+    // unwrap is ok, because vec.len() >= 2
+    let mem = vec.pop().unwrap();
+    let prog = vec.join("");
+
+    let src = Source::from(&*prog);
+    debug!("This is your program code:\n{}", src);
+
+    let pairs = (
+        PasmParser::parse(Rule::prog, &prog).unwrap(),
+        PasmParser::parse(Rule::memory, &mem).unwrap(),
+    );
+
+    debug!("Instructions as detected:");
+    debug!("Addr\tOpcode\tOp");
+    debug!("{:-<7}\t{:-<7}\t{:-<7}", "-", "-", "-");
+    let insts = get_insts(pairs.0);
+
+    debug!("Processing instructions into IR...");
+    let mut insts = process_insts::<T>(insts);
+
+    debug!("Memory as detected:");
+    debug!("Addr\tData");
+    debug!("{:-<7}\t{:-<7}", "-", "-");
+    let mems = get_mems(pairs.1);
+
+    debug!("Processing memory into IR...");
+    let mems = process_mems::<T>(&mems, &mut insts);
+
+    (insts, BTreeMap::from_iter(mems), src)
+}
+
+pub fn jit<T, P>(prog: P, io: Io) -> Executor
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
+    P: Deref<Target = str>,
+{
+    let (insts, mem, src) = parse(prog);
+
+    let prog = insts
+        .into_iter()
+        .map(|Ir::<T> { addr, inst }| (addr, inst.to_exec_inst()))
+        .collect();
+
+    let exe = Executor::new(src, prog, Context::with_io(Memory::new(mem), io));
+
+    info!("Executor created");
+    debug!("{}\n", exe);
+    debug!("The initial context:\n{}\n", exe.ctx);
+
+    exe
+}
+
+pub fn jit_from_file<T, P>(path: P, io: Io) -> Executor
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
+    P: AsRef<Path>,
+{
+    let prog = std::fs::read_to_string(path).expect("Cannot read file");
+
+    info!("File read complete.");
+
+    jit::<T, String>(prog, io)
+}
+
 fn get_inst(inst: Pair<Rule>) -> StrInst {
     let mut out = StrInst::new(None, "".into(), None);
     match inst.as_rule() {
@@ -250,7 +249,7 @@ fn get_inst(inst: Pair<Rule>) -> StrInst {
     out
 }
 
-pub(crate) fn get_insts(inst: Pairs<Rule>) -> Vec<StrInst> {
+fn get_insts(inst: Pairs<Rule>) -> Vec<StrInst> {
     let mut out = Vec::new();
 
     for pair in inst {
@@ -280,7 +279,7 @@ fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op))> {
         for (j, (_, _, op)) in inst_list.iter().enumerate() {
             if addr.is_some() {
                 match op {
-                    Op::Loc(x) => {
+                    Op::Addr(x) => {
                         if addr.as_ref().unwrap() == &x.to_string() {
                             links.push((i, j, None));
                         }
@@ -293,7 +292,7 @@ fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op))> {
                     Op::MultiOp(vec) => {
                         for (idx, op) in vec.iter().enumerate() {
                             match op {
-                                Op::Loc(x) => {
+                                Op::Addr(x) => {
                                     if addr.as_ref().unwrap() == &x.to_string() {
                                         links.push((i, j, Some(idx)));
                                     }
@@ -326,10 +325,10 @@ fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op))> {
         match &ir[i.1].1 .1 {
             Op::MultiOp(ops) => {
                 let mut ops = ops.clone();
-                ops[i.2.unwrap()] = Op::Loc(i.0);
+                ops[i.2.unwrap()] = Op::Addr(i.0);
                 ir[i.1].1 .1 = Op::MultiOp(ops);
             }
-            Op::Loc(_) | Op::Fail(_) => ir[i.1].1 .1 = Op::Loc(i.0),
+            Op::Addr(_) | Op::Fail(_) => ir[i.1].1 .1 = Op::Addr(i.0),
             _ => {}
         };
     }
@@ -337,10 +336,10 @@ fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op))> {
     ir
 }
 
-pub(crate) fn process_insts<T>(insts: Vec<StrInst>) -> Vec<Ir<T>>
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
+fn process_insts<T>(insts: Vec<StrInst>) -> Vec<Ir<T>>
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
 {
     process_inst_links(insts)
         .into_iter()
@@ -388,7 +387,7 @@ fn get_mem(mem: Pair<Rule>) -> Mem {
     out
 }
 
-pub(crate) fn get_mems(mem: Pairs<Rule>) -> Vec<Mem> {
+fn get_mems(mem: Pairs<Rule>) -> Vec<Mem> {
     let mut out = Vec::new();
 
     for pair in mem {
@@ -400,10 +399,10 @@ pub(crate) fn get_mems(mem: Pairs<Rule>) -> Vec<Mem> {
     out
 }
 
-pub(crate) fn process_mems<T>(mems: &[Mem], prog: &mut [Ir<T>]) -> Vec<(usize, MemEntry)>
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
+fn process_mems<T>(mems: &[Mem], prog: &mut [Ir<T>]) -> Vec<(usize, MemEntry)>
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
 {
     let mut links = Vec::new();
 
@@ -417,7 +416,7 @@ pub(crate) fn process_mems<T>(mems: &[Mem], prog: &mut [Ir<T>]) -> Vec<(usize, M
         ) in prog.iter().enumerate()
         {
             match op {
-                Op::Loc(x) => {
+                Op::Addr(x) => {
                     if addr == &x.to_string() {
                         links.push((i, j, None));
                     }
@@ -430,7 +429,7 @@ pub(crate) fn process_mems<T>(mems: &[Mem], prog: &mut [Ir<T>]) -> Vec<(usize, M
                 Op::MultiOp(vec) => {
                     for (idx, op) in vec.iter().enumerate() {
                         match op {
-                            Op::Loc(x) => {
+                            Op::Addr(x) => {
                                 if addr == &x.to_string() {
                                     links.push((i, j, Some(idx)));
                                 }
@@ -457,10 +456,10 @@ pub(crate) fn process_mems<T>(mems: &[Mem], prog: &mut [Ir<T>]) -> Vec<(usize, M
         match &prog[i.1].inst.op {
             Op::MultiOp(ops) => {
                 let mut ops = ops.clone();
-                ops[i.2.unwrap()] = Op::Loc(i.0);
+                ops[i.2.unwrap()] = Op::Addr(i.0);
                 prog[i.1].inst.op = Op::MultiOp(ops);
             }
-            Op::Loc(_) | Op::Fail(_) => prog[i.1].inst.op = Op::Loc(i.0),
+            Op::Addr(_) | Op::Fail(_) => prog[i.1].inst.op = Op::Addr(i.0),
             _ => {}
         };
     }
@@ -509,41 +508,44 @@ mod parse_tests {
     use crate::{
         make_io,
         parse::{self, jit},
-        PROGRAMS,
+        TestStdout, PROGRAMS,
     };
     use std::time::Instant;
 
+    #[cfg(feature = "cambridge")]
+    type Parser = parse::Core;
+
+    #[cfg(not(feature = "cambridge"))]
+    type Parser = parse::Extended;
+
     #[test]
     fn test() {
-        macro_rules! sink {
-            () => {
-                $crate::make_io!(std::io::stdin(), std::io::sink())
-            };
-        }
+        for (prog, acc, out) in PROGRAMS {
+            let mut t = Instant::now();
+            let s = TestStdout::new(vec![]);
 
-        for (prog, acc) in PROGRAMS {
-            let t = Instant::now();
+            let mut exec = jit::<Parser, _>(prog, make_io!(std::io::stdin(), s.clone()));
 
-            #[cfg(feature = "cambridge")]
-                let mut exec = jit::<parse::Core, &str>(prog, sink!());
+            println!("Parse time: {:?}", t.elapsed());
 
-            #[cfg(not(feature = "cambridge"))]
-                let mut exec = jit::<parse::Extended, &str>(prog, sink!());
+            t = Instant::now();
 
-            println!("{:?} elapsed", t.elapsed());
-            exec.exec();
+            exec.exec::<Parser>();
+
+            println!("Execution time: {:?}", t.elapsed());
+
             assert_eq!(exec.ctx.acc, acc);
-            println!("{:?} elapsed", t.elapsed());
+            assert_eq!(s.to_vec(), out);
         }
     }
 
     #[test]
     #[should_panic]
     fn panics() {
-        let mut exec = jit::<parse::Core, &str>(
+        let mut exec = jit::<Parser, _>(
             include_str!("../examples/panics.pasm"),
             make_io!(std::io::stdin(), std::io::sink()),
         );
-        exec.exec();
+        exec.exec::<Parser>();
     }
 }

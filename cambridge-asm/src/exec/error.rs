@@ -19,9 +19,9 @@ pub enum PasmError {
     InvalidOperand,
     NoOpInst,
     NoOperand,
-    InvalidMemoryLoc(String),
+    InvalidMemoryLoc(usize),
     InvalidIndirectAddress(usize),
-    InvalidIndexedAddress(usize),
+    InvalidIndexedAddress(usize, usize),
     InvalidMultiOp,
 }
 
@@ -33,11 +33,12 @@ impl Display for PasmError {
             Str(s) => f.write_str(s),
             InvalidUtf8Byte(b) => f.write_fmt(format_args!("#x{b:X} is not a valid UTF-8 byte.")),
             InvalidLiteral => f.write_str("Operand is not a decimal, hexadecimal, or binary number."),
-            InvalidOperand => f.write_str("Operand is not a memory location, register, or literal. If you wanted to use a label, please double-check the label."),
+            InvalidOperand => f.write_str("Operand is not a memory address, register, or literal. If you wanted to use a label, please double-check the label."),
             NoOperand => f.write_str("Operand missing."),
             NoOpInst => f.write_str("Instruction takes no operand."),
-            InvalidMemoryLoc(l) => f.write_fmt(format_args!("Memory location `{l}` does not exist.")),
-            InvalidIndirectAddress(v) | InvalidIndexedAddress(v) => f.write_fmt(format_args!("The value at the memory location, '{v}', is not a valid memory location. If you wanted to use a label, please double-check the label.")),
+            InvalidMemoryLoc(addr) => f.write_fmt(format_args!("Memory address {addr} does not exist.")),
+            InvalidIndirectAddress(addr) => f.write_fmt(format_args!("The value at memory address {addr} does not point to a valid memory address")),
+            InvalidIndexedAddress(addr, offset) => f.write_fmt(format_args!("The memory address {addr} offset by IX value {offset} is not a valid memory address ({addr} + {offset} = {})", addr + offset)),
             InvalidMultiOp => f.write_str("Operand sequence is invalid"),
         }
     }
@@ -51,7 +52,7 @@ impl<T: Deref<Target = str>> From<T> for PasmError {
     }
 }
 
-pub type PasmResult = Result<(), PasmError>;
+pub type PasmResult<T = ()> = Result<T, PasmError>;
 
 #[derive(Debug)]
 #[repr(transparent)]

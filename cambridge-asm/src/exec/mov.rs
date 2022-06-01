@@ -3,12 +3,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use super::{Context, PasmError::*, PasmResult};
 use crate::inst::Op::{self, *};
-use super::{
-    Context,
-    PasmError::*,
-    PasmResult,
-};
 
 /// Load immediate values into a register
 ///
@@ -38,17 +34,17 @@ pub fn ldm(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// # Syntax
 ///
-/// 1. `LDD [loc]` - loads to `ACC`
-/// 2. `LDD [reg],[loc]` - loads to `reg`
+/// 1. `LDD [addr]` - loads to `ACC`
+/// 2. `LDD [reg],[addr]` - loads to `reg`
 pub fn ldd(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
-        Loc(loc) => {
-            ctx.acc = ctx.mem.get(loc)?;
+        Addr(addr) => {
+            ctx.acc = ctx.mem.get(addr)?;
             Ok(())
         }
         MultiOp(ops) => match ops[..] {
-            [ref reg, Loc(ref loc)] if reg.is_register() => {
-                let x = ctx.mem.get(loc)?;
+            [ref reg, Addr(ref addr)] if reg.is_register() => {
+                let x = ctx.mem.get(addr)?;
                 *ctx.get_mut_register(reg) = x;
                 Ok(())
             }
@@ -63,23 +59,28 @@ pub fn ldd(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// # Syntax
 ///
-/// 1. `LDM [loc]` - loads to `ACC`
-/// 2. `LDM [reg],[loc]` - loads to `reg`
+/// 1. `LDM [addr]` - loads to `ACC`
+/// 2. `LDM [reg],[addr]` - loads to `reg`
 pub fn ldi(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
-        Loc(mut loc) => {
-            loc = ctx.mem.get_address(&loc)?;
+        &Addr(addr) => {
+            let addr2 = ctx.mem.get_address(&addr)?;
 
-            ctx.acc = ctx.mem.get(&loc).map_err(|_| InvalidIndirectAddress(loc))?;
+            ctx.acc = ctx
+                .mem
+                .get(&addr2)
+                .map_err(|_| InvalidIndirectAddress(addr))?;
 
             Ok(())
         }
         MultiOp(ops) => match ops[..] {
-            [ref reg, Loc(mut loc)] if reg.is_register() => {
-                loc = ctx.mem.get_address(&loc)?;
+            [ref reg, Addr(addr)] if reg.is_register() => {
+                let addr2 = ctx.mem.get_address(&addr)?;
 
-                *ctx.get_mut_register(reg) =
-                    ctx.mem.get(&loc).map_err(|_| InvalidIndirectAddress(loc))?;
+                *ctx.get_mut_register(reg) = ctx
+                    .mem
+                    .get(&addr2)
+                    .map_err(|_| InvalidIndirectAddress(addr))?;
 
                 Ok(())
             }
@@ -94,23 +95,24 @@ pub fn ldi(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// # Syntax
 ///
-/// 1. `LDM [loc]` - loads to `ACC`
-/// 2. `LDM [reg],[loc]` - loads to `reg`
+/// 1. `LDM [addr]` - loads to `ACC`
+/// 2. `LDM [reg],[addr]` - loads to `reg`
 pub fn ldx(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
-        Loc(mut loc) => {
-            loc += ctx.ix;
-
-            ctx.acc = ctx.mem.get(&loc).map_err(|_| InvalidIndexedAddress(loc))?;
+        &Addr(addr) => {
+            ctx.acc = ctx
+                .mem
+                .get(&(addr + ctx.ix))
+                .map_err(|_| InvalidIndexedAddress(addr, ctx.ix))?;
 
             Ok(())
         }
         MultiOp(ops) => match ops[..] {
-            [ref reg, Loc(mut loc)] if reg.is_register() => {
-                loc += ctx.ix;
-
-                *ctx.get_mut_register(reg) =
-                    ctx.mem.get(&loc).map_err(|_| InvalidIndexedAddress(loc))?;
+            [ref reg, Addr(addr)] if reg.is_register() => {
+                *ctx.get_mut_register(reg) = ctx
+                    .mem
+                    .get(&(addr + ctx.ix))
+                    .map_err(|_| InvalidIndexedAddress(addr, ctx.ix))?;
 
                 Ok(())
             }
@@ -137,12 +139,12 @@ pub fn ldr(ctx: &mut Context, op: &Op) -> PasmResult {
 
 /// Move value from `ACC` to a register
 /// OR
-/// Move values between registers and memory locations
+/// Move values between registers and memory addresses
 ///
 /// # Syntax
 ///
 /// 1. `MOV [reg]` - move `ACC` value to `reg`
-/// 2. `MOV [reg | loc],[reg | loc]` - move second value to first
+/// 2. `MOV [reg | addr],[reg | addr]` - move second value to first
 pub fn mov(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         MultiOp(ops) => match ops[..] {
@@ -163,10 +165,10 @@ pub fn mov(ctx: &mut Context, op: &Op) -> PasmResult {
 /// Store `ACC` value in memory
 ///
 /// # Syntax
-/// `STO [loc]`
+/// `STO [addr]`
 pub fn sto(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
-        Loc(x) => {
+        Addr(x) => {
             ctx.mem.write(x, ctx.acc)?;
 
             Ok(())

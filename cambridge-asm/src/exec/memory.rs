@@ -5,7 +5,7 @@
 
 use super::{PasmError, PasmResult};
 use std::{
-    collections::{btree_map::BTreeMap, btree_map::Iter},
+    collections::btree_map::{BTreeMap, Iter},
     fmt::{Debug, Display, Formatter, Result as FmtResult},
 };
 
@@ -31,8 +31,8 @@ impl MemEntry {
         }
     }
 
-    pub fn as_address(&self) -> usize {
-        self.address.unwrap()
+    pub fn as_address(&self) -> Option<usize> {
+        self.address
     }
 }
 
@@ -67,27 +67,24 @@ impl Memory {
         self.0.iter()
     }
 
-    pub fn get(&self, loc: &usize) -> Result<usize, PasmError> {
-        let x = self
-            .0
-            .get(loc)
-            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{loc:?}")))?;
+    pub fn get(&self, addr: &usize) -> Result<usize, PasmError> {
+        let x = self.0.get(addr).ok_or(PasmError::InvalidMemoryLoc(*addr))?;
         Ok(x.literal)
     }
 
-    pub fn get_address(&self, loc: &usize) -> Result<usize, PasmError> {
-        let x = self
-            .0
-            .get(loc)
-            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{loc:?}")))?;
-        Ok(x.as_address())
+    pub fn get_address(&self, addr: &usize) -> PasmResult<usize> {
+        self.0
+            .get(addr)
+            .ok_or(PasmError::InvalidMemoryLoc(*addr))?
+            .as_address()
+            .ok_or(PasmError::InvalidIndirectAddress(*addr))
     }
 
-    pub fn write(&mut self, loc: &usize, dat: usize) -> PasmResult {
+    pub fn write(&mut self, addr: &usize, dat: usize) -> PasmResult {
         let x = self
             .0
-            .get_mut(loc)
-            .ok_or_else(|| PasmError::InvalidMemoryLoc(format!("{loc:?}")))?;
+            .get_mut(addr)
+            .ok_or(PasmError::InvalidMemoryLoc(*addr))?;
 
         if x.literal <= dat {
             let offset = dat - x.literal;

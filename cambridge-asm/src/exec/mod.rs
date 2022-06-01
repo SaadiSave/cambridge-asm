@@ -5,12 +5,13 @@
 
 #![allow(clippy::module_name_repetitions)]
 
+use crate::inst::{InstSet, Op};
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Display, Formatter, Result as FmtResult},
     io as stdio,
+    str::FromStr,
 };
-use crate::inst::Op;
 
 /// # Arithmetic
 /// Module for arithmetic operations
@@ -23,7 +24,7 @@ pub mod arith;
 pub mod io;
 
 /// # Data movement
-/// Module for moving data between registers and memory locations
+/// Module for moving data between registers and memory addresses
 #[allow(clippy::needless_pass_by_value, clippy::enum_glob_use)]
 pub mod mov;
 
@@ -49,7 +50,7 @@ pub use error::{PasmError, PasmResult, Source};
 
 pub use memory::{MemEntry, Memory};
 
-pub use inst::{ExecInst, ExecFunc};
+pub use inst::{ExecFunc, ExecInst};
 
 pub struct Io {
     pub read: Box<dyn stdio::Read>,
@@ -147,7 +148,7 @@ impl Context {
     #[inline]
     pub fn modify(&mut self, op: &Op, f: impl Fn(&mut usize)) -> PasmResult {
         match op {
-            Op::Loc(x) => {
+            Op::Addr(x) => {
                 let mut res = self.mem.get(x)?;
                 f(&mut res);
                 self.mem.write(x, res)?;
@@ -212,7 +213,11 @@ impl Executor {
         }
     }
 
-    pub fn exec(&mut self) {
+    pub fn exec<T>(&mut self)
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
+    {
         loop {
             if self.ctx.mar == self.prog.len() || self.ctx.end {
                 break;
@@ -220,13 +225,19 @@ impl Executor {
 
             self.count += 1;
 
-            trace!("Executing line {}", self.ctx.mar + 1);
-
             let inst = if let Some(inst) = self.prog.get(&self.ctx.mar) {
                 inst
             } else {
                 panic!("Unable to fetch instruction. Please report this as a bug with full debug logs attached.")
             };
+
+            trace!(
+                "Executing instruction {} {}",
+                T::from_func_ptr(inst.func)
+                    .unwrap_or_else(|msg| panic!("{msg}"))
+                    .to_string(),
+                inst.op.to_string()
+            );
 
             match (inst.func)(&mut self.ctx, &inst.op) {
                 Ok(_) => (),
@@ -279,25 +290,18 @@ impl Debug for Executor {
 #[cfg(test)]
 #[test]
 fn exec() {
+    use crate::parse;
     use std::collections::BTreeMap;
 
     let prog: BTreeMap<usize, ExecInst> = BTreeMap::from(
-        // Division algorithm from pg 101 of textbook
+        // Division algorithm from examples/division.pasm
         [
-            (0, ExecInst::new(mov::ldd, "200".into())),
-            (1, ExecInst::new(mov::sto, "202".into())),
-            (2, ExecInst::new(mov::sto, "203".into())),
-            (3, ExecInst::new(mov::ldd, "202".into())),
-            (4, ExecInst::new(arith::inc, "ACC".into())),
-            (5, ExecInst::new(mov::sto, "202".into())),
-            (6, ExecInst::new(mov::ldd, "203".into())),
-            (7, ExecInst::new(arith::add, "201".into())),
-            (8, ExecInst::new(mov::sto, "203".into())),
-            (9, ExecInst::new(cmp::cmp, "204".into())),
-            (10, ExecInst::new(cmp::jpn, "3".into())),
-            (11, ExecInst::new(mov::ldd, "202".into())),
-            (12, ExecInst::new(io::out, "".into())),
-            (13, ExecInst::new(io::end, "".into())),
+            (0, ExecInst::new(arith::inc, "202".into())),
+            (1, ExecInst::new(arith::add, "203,201".into())),
+            (2, ExecInst::new(cmp::cmp, "203,204".into())),
+            (3, ExecInst::new(cmp::jpn, "0".into())),
+            (4, ExecInst::new(mov::ldd, "202".into())),
+            (5, ExecInst::new(io::end, "".into())),
         ],
     );
 
@@ -306,12 +310,16 @@ fn exec() {
         (201, 5.into()),
         (202, 0.into()),
         (203, 0.into()),
-        (204, 75.into()),
+        (204, 15.into()),
     ]);
 
     let mut exec = Executor::new("None", prog, Context::new(Memory::new(mem)));
 
-    exec.exec();
+    #[cfg(feature = "cambridge")]
+    exec.exec::<parse::Core>();
 
-    assert_eq!(exec.ctx.acc, 15);
+    #[cfg(not(feature = "cambridge"))]
+    exec.exec::<parse::Extended>();
+
+    assert_eq!(exec.ctx.acc, 3);
 }

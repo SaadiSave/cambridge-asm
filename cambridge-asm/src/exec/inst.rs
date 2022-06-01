@@ -104,13 +104,13 @@ mod tests {
     #[test]
     fn op_parsing() {
         let ops = [
-            ("200", Loc(200)),
+            ("200", Addr(200)),
             ("#x80", Literal(128)),
             ("#b001", Literal(1)),
             ("#800", Literal(800)),
             (
                 "200,#8,be",
-                MultiOp(vec![Loc(200), Literal(8), Fail("be".into())]),
+                MultiOp(vec![Addr(200), Literal(8), Fail("be".into())]),
             ),
             ("", Null),
             ("ACC,r10,#x10", MultiOp(vec![Acc, Gpr(10), Literal(16)])),

@@ -5,13 +5,11 @@
 
 #![allow(clippy::module_name_repetitions)]
 
+use crate::exec::{Context, ExecFunc, ExecInst, PasmError};
+use std::{fmt::Display, ops::Deref, str::FromStr};
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
-use std::ops::Deref;
-use std::str::FromStr;
-
-use crate::exec::{Context, ExecFunc, ExecInst, PasmError};
 
 #[cfg(feature = "bincode")]
 use bincode::{Decode, Encode};
@@ -25,7 +23,7 @@ pub enum Op {
     Ix,
     Cmp,
     Ar,
-    Loc(usize),
+    Addr(usize),
     Literal(usize),
     // Prepare for gpr feature
     Gpr(usize),
@@ -51,7 +49,7 @@ impl Op {
     }
 
     pub fn is_read_write(&self) -> bool {
-        self.is_register() || matches!(self, Op::Loc(_))
+        self.is_register() || matches!(self, Op::Addr(_))
     }
 
     pub fn is_usizeable(&self) -> bool {
@@ -62,7 +60,7 @@ impl Op {
     pub fn get_val(&self, ctx: &Context) -> Result<usize, PasmError> {
         match self {
             &Op::Literal(val) => Ok(val),
-            Op::Loc(loc) => ctx.mem.get(loc),
+            Op::Addr(addr) => ctx.mem.get(addr),
             reg if reg.is_register() => Ok(ctx.get_register(reg)),
             _ => unreachable!(),
         }
@@ -80,7 +78,7 @@ impl ToString for Op {
             Ix => "IX".to_string(),
             Cmp => "CMP".to_string(),
             Ar => "AR".to_string(),
-            Loc(x) => format!("{x}"),
+            Addr(x) => format!("{x}"),
             Literal(x) => format!("#{x}"),
             Fail(x) => format!("`{x}` was not parsed successfully"),
             Gpr(x) => format!("r{x}"),
@@ -135,7 +133,7 @@ pub fn get_reg_no(mut op: String) -> usize {
     op.parse().unwrap()
 }
 
-impl<T: Deref<Target=str>> From<T> for Op {
+impl<T: Deref<Target = str>> From<T> for Op {
     fn from(inp: T) -> Self {
         fn get_op(inp: &str) -> Op {
             #[allow(clippy::enum_glob_use)]
@@ -144,7 +142,7 @@ impl<T: Deref<Target=str>> From<T> for Op {
             if inp.is_empty() {
                 Null
             } else if let Ok(x) = inp.parse() {
-                Loc(x)
+                Addr(x)
             } else if inp.contains('#') {
                 Literal(get_literal(inp.into()))
             } else if inp.to_lowercase().starts_with('r')
@@ -176,10 +174,11 @@ impl<T: Deref<Target=str>> From<T> for Op {
 }
 
 pub trait InstSet: FromStr + ToString
-    where
-        <Self as FromStr>::Err: Display,
+where
+    <Self as FromStr>::Err: Display,
 {
     fn as_func_ptr(&self) -> ExecFunc;
+    fn from_func_ptr(_: ExecFunc) -> Result<Self, <Self as FromStr>::Err>;
 }
 
 #[macro_export]
@@ -220,6 +219,18 @@ macro_rules! inst_set {
                 $using
                 match self {
                     $(Self::$inst => $func,)+
+                }
+            }
+
+            fn from_func_ptr(f: $crate::exec::ExecFunc) -> Result<Self, String> {
+                $using
+                $(
+                const $inst: $crate::exec::ExecFunc = $func;
+                )+
+
+                match f {
+                    $($inst => Ok(Self::$inst),)+
+                    _ => Err(format!("0x{:X} is not a valid function pointer", f as usize)),
                 }
             }
         }
@@ -269,23 +280,35 @@ macro_rules! extend {
                     Self::Parent(p) => p.as_func_ptr()
                 }
             }
+
+            fn from_func_ptr(f: $crate::exec::ExecFunc) -> Result<Self, String> {
+                $using
+                $(
+                const $inst: $crate::exec::ExecFunc = $func;
+                )+
+
+                match f {
+                    $($inst => Ok(Self::$inst),)+
+                    f => Ok(Self::Parent($parent::from_func_ptr(f)?)),
+                }
+            }
         }
     };
 }
 
 pub struct Inst<T>
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
 {
     pub inst: T,
     pub op: Op,
 }
 
 impl<T> Inst<T>
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
 {
     pub fn new(inst: T, op: Op) -> Self {
         Self { inst, op }

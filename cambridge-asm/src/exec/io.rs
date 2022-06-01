@@ -35,7 +35,7 @@ inst!(
     ///
     /// # Syntax
     /// 1. `OUT` - output `ACC`
-    /// 2. `OUT [lit | reg | loc]`
+    /// 2. `OUT [lit | reg | addr]`
     out | ctx,
     op | {
         match op {
@@ -77,7 +77,7 @@ inst!(
     ///
     /// # Syntax
     /// 1. `INP` - read to `ACC`
-    /// 2. `INP [reg | loc]`
+    /// 2. `INP [reg | addr]`
     inp | ctx,
     op | {
         match op {
@@ -112,8 +112,8 @@ inst!(
     ///
     /// # Syntax
     /// 1. `DBG` - print entire execution context
-    /// 2. `DBG [lit | reg | loc]` - print value
-    /// 3. `DBG [lit | reg | loc], ...` - print value of all ops
+    /// 2. `DBG [lit | reg | addr]` - print value
+    /// 3. `DBG [lit | reg | addr], ...` - print value of all ops
     #[cfg(not(feature = "cambridge"))]
     dbg | ctx,
     op | {
@@ -146,7 +146,7 @@ inst!(
     ///
     /// # Syntax
     /// 1. `RIN` - store to `ACC`
-    /// 2. `RIN [reg | loc]`
+    /// 2. `RIN [reg | addr]`
     #[cfg(not(feature = "cambridge"))]
     rin | ctx,
     op | {
@@ -198,14 +198,14 @@ inst!(
 /// Call a function
 ///
 /// # Syntax
-/// `CALL [loc]`
+/// `CALL [addr]`
 #[cfg(not(feature = "cambridge"))]
 pub fn call(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
-        &Op::Loc(loc) => {
+        &Op::Addr(addr) => {
             ctx.ret = ctx.mar + 1;
             ctx.override_flow_control();
-            ctx.mar = loc;
+            ctx.mar = addr;
             Ok(())
         }
         _ => Err(PasmError::InvalidOperand),

@@ -1,5 +1,5 @@
-LDI PTR
+LDM #b2
 END
 
 
-PTR: 0
+NONE:

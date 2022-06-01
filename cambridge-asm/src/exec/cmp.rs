@@ -3,26 +3,22 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use super::{Context, PasmError::*, PasmResult};
 use crate::inst::Op::{self, *};
-use super::{
-    Context,
-    PasmError::*,
-    PasmResult,
-};
 
 /// Jump
 ///
 /// # Syntax
-/// 1. `JMP [ref]` - jump to loc
+/// 1. `JMP [ref]` - jump to addr
 /// 2. `JMP [ref],[ref]` - jump to first if CMP true, second if CMP false
 pub fn jmp(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
-        &Loc(x) => {
+        &Addr(x) => {
             ctx.override_flow_control();
             ctx.mar = x;
         }
         MultiOp(ops) => match ops[..] {
-            [Loc(eq), Loc(ne)] => {
+            [Addr(eq), Addr(ne)] => {
                 ctx.override_flow_control();
                 if ctx.cmp {
                     ctx.mar = eq;
@@ -42,8 +38,8 @@ pub fn jmp(ctx: &mut Context, op: &Op) -> PasmResult {
 /// Compare
 ///
 /// # Syntax
-/// 1. `CMP [lit | reg | loc]` - compare to ACC
-/// 2. `CMP [lit | reg | loc],[lit | reg | loc]` - compare both values
+/// 1. `CMP [lit | reg | addr]` - compare to ACC
+/// 2. `CMP [lit | reg | addr],[lit | reg | addr]` - compare both values
 pub fn cmp(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         MultiOp(ops) => match ops[..] {
@@ -63,23 +59,30 @@ pub fn cmp(ctx: &mut Context, op: &Op) -> PasmResult {
 /// Compare with indirect addressing
 ///
 /// # Syntax
-/// 1. `CMI [loc]`
-/// 2. `CMI [lit | reg | loc],[loc]`
+/// 1. `CMI [addr]`
+/// 2. `CMI [lit | reg | addr],[addr]`
 pub fn cmi(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
-        Loc(mut loc) => {
-            loc = ctx.mem.get_address(&loc)?;
+        &Addr(addr) => {
+            let addr2 = ctx.mem.get_address(&addr)?;
 
-            ctx.cmp = ctx.acc == ctx.mem.get(&loc).map_err(|_| InvalidIndirectAddress(loc))?;
+            ctx.cmp = ctx.acc
+                == ctx
+                    .mem
+                    .get(&addr2)
+                    .map_err(|_| InvalidIndirectAddress(addr))?;
 
             Ok(())
         }
         MultiOp(ops) => match ops[..] {
-            [ref dest, Loc(mut loc)] if dest.is_usizeable() => {
-                loc = ctx.mem.get_address(&loc)?;
+            [ref dest, Addr(addr)] if dest.is_usizeable() => {
+                let addr2 = ctx.mem.get_address(&addr)?;
 
                 ctx.cmp = dest.get_val(ctx)?
-                    == ctx.mem.get(&loc).map_err(|_| InvalidIndirectAddress(loc))?;
+                    == ctx
+                        .mem
+                        .get(&addr2)
+                        .map_err(|_| InvalidIndirectAddress(addr))?;
 
                 Ok(())
             }
@@ -93,13 +96,13 @@ pub fn cmi(ctx: &mut Context, op: &Op) -> PasmResult {
 /// Jump if equal
 ///
 /// # Syntax
-/// `JPE [loc]`
+/// `JPE [addr]`
 pub fn jpe(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
-        &Loc(loc) => {
+        &Addr(addr) => {
             if ctx.cmp {
                 ctx.override_flow_control();
-                ctx.mar = loc;
+                ctx.mar = addr;
             }
 
             Ok(())
@@ -112,13 +115,13 @@ pub fn jpe(ctx: &mut Context, op: &Op) -> PasmResult {
 /// Jump if not equal
 ///
 /// # Syntax
-/// `JPN [loc]`
+/// `JPN [addr]`
 pub fn jpn(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
-        &Loc(loc) => {
+        &Addr(addr) => {
             if !ctx.cmp {
                 ctx.override_flow_control();
-                ctx.mar = loc;
+                ctx.mar = addr;
             }
 
             Ok(())

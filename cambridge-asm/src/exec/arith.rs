@@ -3,12 +3,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+use super::{Context, PasmError::*, PasmResult};
 use crate::inst::Op::{self, *};
-use super::{
-    Context,
-    PasmError::*,
-    PasmResult,
-};
 
 #[inline]
 fn checked_add(dest: &mut usize, val: usize, mar: usize) {
@@ -23,9 +19,9 @@ fn checked_add(dest: &mut usize, val: usize, mar: usize) {
 /// Add values
 ///
 /// # Syntax
-/// 1. `ADD [lit | reg | loc]` - add to `ACC`
-/// 2. `ADD [reg | loc],[lit | reg | loc]` - add second value to first
-/// 3. `ADD [reg | loc],[lit | reg | loc],[lit | reg | loc]` - add second and third value, store to first
+/// 1. `ADD [lit | reg | addr]` - add to `ACC`
+/// 2. `ADD [reg | addr],[lit | reg | addr]` - add second value to first
+/// 3. `ADD [reg | addr],[lit | reg | addr],[lit | reg | addr]` - add second and third value, store to first
 pub fn add(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         MultiOp(ops) => match ops[..] {
@@ -67,9 +63,9 @@ fn checked_sub(dest: &mut usize, val: usize, mar: usize) {
 /// Subtract values
 ///
 /// # Syntax
-/// 1. `ADD [lit | reg | loc]` - subtract from `ACC`
-/// 2. `ADD [reg | loc],[lit | reg | loc]` - subtract second value from first
-/// 3. `ADD [reg | loc],[lit | reg | loc],[lit | reg | loc]` - subtract third from second value, store to first
+/// 1. `ADD [lit | reg | addr]` - subtract from `ACC`
+/// 2. `ADD [reg | addr],[lit | reg | addr]` - subtract second value from first
+/// 3. `ADD [reg | addr],[lit | reg | addr],[lit | reg | addr]` - subtract third from second value, store to first
 pub fn sub(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         MultiOp(ops) => match ops[..] {
@@ -98,10 +94,10 @@ pub fn sub(ctx: &mut Context, op: &Op) -> PasmResult {
     Ok(())
 }
 
-/// Increment register or memory location
+/// Increment register or memory address
 ///
 /// # Syntax
-/// `INC [reg | loc]`
+/// `INC [reg | addr]`
 pub fn inc(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         dest if dest.is_read_write() => {
@@ -115,10 +111,10 @@ pub fn inc(ctx: &mut Context, op: &Op) -> PasmResult {
     Ok(())
 }
 
-/// Decrement register or memory location
+/// Decrement register or memory address
 ///
 /// # Syntax
-/// `DEC [reg | loc]`
+/// `DEC [reg | addr]`
 pub fn dec(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         dest if dest.is_read_write() => {
