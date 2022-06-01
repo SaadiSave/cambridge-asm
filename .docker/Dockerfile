@@ -4,7 +4,9 @@ RUN apt update && apt install -y gcc-10-aarch64-linux-gnu gcc-10-riscv64-linux-g
 
 RUN rustup target add aarch64-unknown-linux-gnu riscv64gc-unknown-linux-gnu x86_64-pc-windows-gnu
 
-RUN cargo install cargo-hack
+RUN rustup component add rustfmt
+
+RUN cargo install cargo-hack cargo-nextest
 
 # Install GitHub CLI
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && \
