@@ -7,12 +7,11 @@
 
 use cambridge_asm::{
     compile::{self, CompiledProg},
-    exec::Executor,
+    exec::{Executor, Io},
     parse::{self, InstSet},
 };
 use clap::{ArgEnum, Parser, Subcommand};
 use std::ffi::OsString;
-use cambridge_asm::exec::Io;
 
 #[cfg(feature = "cambridge")]
 const INST_SET: InstSet = parse::get_fn;
