@@ -203,6 +203,12 @@ pub struct Executor {
     count: u64,
 }
 
+pub enum Status {
+    Complete,
+    Continue,
+    Error(PasmError),
+}
+
 impl Executor {
     pub fn new(source: impl Into<Source>, prog: ExTree, ctx: Context) -> Self {
         Self {
@@ -213,16 +219,14 @@ impl Executor {
         }
     }
 
-    pub fn exec<T>(&mut self)
+    pub fn step<T>(&mut self) -> Status
     where
         T: InstSet,
         <T as FromStr>::Err: Display,
     {
-        loop {
-            if self.ctx.mar == self.prog.len() || self.ctx.end {
-                break;
-            }
-
+        if self.ctx.mar == self.prog.len() || self.ctx.end {
+            Status::Complete
+        } else {
             self.count += 1;
 
             let inst = if let Some(inst) = self.prog.get(&self.ctx.mar) {
@@ -240,22 +244,39 @@ impl Executor {
             );
 
             match (inst.func)(&mut self.ctx, &inst.op) {
-                Ok(_) => (),
-                Err(e) => {
-                    self.source
-                        .handle_err(&mut self.ctx.io.write, &e, self.ctx.mar);
-                    return;
-                }
-            }
+                Ok(_) => {
+                    if self.ctx.flow_override_reg {
+                        self.ctx.flow_override_reg = false;
+                    } else {
+                        self.ctx.mar += 1;
+                    }
 
-            if self.ctx.flow_override_reg {
-                self.ctx.flow_override_reg = false;
-            } else {
-                self.ctx.mar += 1;
+                    Status::Continue
+                }
+                Err(e) => Status::Error(e),
             }
         }
+    }
 
-        debug!("Total instructions executed: {}", self.count);
+    pub fn exec<T>(&mut self)
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
+    {
+        let err = loop {
+            match self.step::<T>() {
+                Status::Complete => break None,
+                Status::Continue => continue,
+                Status::Error(e) => break Some(e),
+            }
+        };
+
+        if let Some(e) = err {
+            self.source
+                .handle_err(&mut self.ctx.io.write, &e, self.ctx.mar);
+        } else {
+            info!("Total instructions executed: {}", self.count);
+        }
     }
 }
 
