@@ -87,11 +87,11 @@ where
         )
         .collect();
 
-    let exe = CompiledProg::new(prog, Memory::new(mem));
+    let compiled = CompiledProg::new(prog, Memory::new(mem));
 
     info!("Program compiled");
 
-    exe
+    compiled
 }
 
 pub fn from_file<T, P>(path: P) -> CompiledProg
@@ -108,22 +108,18 @@ where
 mod compile_tests {
     use crate::{
         compile::{compile, CompiledProg},
-        make_io, parse, TestStdout, PROGRAMS,
+        make_io,
+        parse::DefaultSet,
+        TestStdout, PROGRAMS,
     };
     use std::time::Instant;
 
     #[test]
     pub fn test() {
-        #[cfg(feature = "cambridge")]
-        type Parser = parse::Core;
-
-        #[cfg(not(feature = "cambridge"))]
-        type Parser = parse::Extended;
-
         for (prog, res, out) in PROGRAMS {
             let mut t = Instant::now();
 
-            let compiled = compile::<Parser, _>(prog);
+            let compiled = compile::<DefaultSet, _>(prog);
             let ser = serde_json::to_string(&compiled).unwrap();
 
             println!("Compilation time: {:?}", t.elapsed());
@@ -133,13 +129,13 @@ mod compile_tests {
 
             let mut exe = serde_json::from_str::<CompiledProg>(&ser)
                 .unwrap()
-                .to_executor::<Parser>(make_io!(std::io::stdin(), s.clone()));
+                .to_executor::<DefaultSet>(make_io!(std::io::stdin(), s.clone()));
 
             println!("JIT time: {:?}", t.elapsed());
 
             t = Instant::now();
 
-            exe.exec::<Parser>();
+            exe.exec::<DefaultSet>();
 
             println!("Execution time: {:?}", t.elapsed());
 

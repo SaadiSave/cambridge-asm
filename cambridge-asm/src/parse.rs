@@ -61,6 +61,12 @@ extend! {
     }
 }
 
+#[cfg(feature = "cambridge")]
+pub type DefaultSet = Core;
+
+#[cfg(not(feature = "cambridge"))]
+pub type DefaultSet = Extended;
+
 #[derive(Parser)]
 #[grammar = "pasm.pest"]
 struct PasmParser;
@@ -507,16 +513,10 @@ where
 mod parse_tests {
     use crate::{
         make_io,
-        parse::{self, jit},
+        parse::{jit, DefaultSet},
         TestStdout, PROGRAMS,
     };
     use std::time::Instant;
-
-    #[cfg(feature = "cambridge")]
-    type Parser = parse::Core;
-
-    #[cfg(not(feature = "cambridge"))]
-    type Parser = parse::Extended;
 
     #[test]
     fn test() {
@@ -524,13 +524,13 @@ mod parse_tests {
             let mut t = Instant::now();
             let s = TestStdout::new(vec![]);
 
-            let mut exec = jit::<Parser, _>(prog, make_io!(std::io::stdin(), s.clone()));
+            let mut exec = jit::<DefaultSet, _>(prog, make_io!(std::io::stdin(), s.clone()));
 
             println!("Parse time: {:?}", t.elapsed());
 
             t = Instant::now();
 
-            exec.exec::<Parser>();
+            exec.exec::<DefaultSet>();
 
             println!("Execution time: {:?}", t.elapsed());
 
@@ -542,10 +542,10 @@ mod parse_tests {
     #[test]
     #[should_panic]
     fn panics() {
-        let mut exec = jit::<Parser, _>(
+        let mut exec = jit::<DefaultSet, _>(
             include_str!("../examples/panics.pasm"),
             make_io!(std::io::stdin(), std::io::sink()),
         );
-        exec.exec::<Parser>();
+        exec.exec::<DefaultSet>();
     }
 }
