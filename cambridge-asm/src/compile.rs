@@ -31,6 +31,7 @@ impl CompiledInst {
 
 type CompiledTree = BTreeMap<usize, CompiledInst>;
 
+/// Represents a compiled program ready to be serialized into a file
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct CompiledProg {
@@ -43,6 +44,7 @@ impl CompiledProg {
         Self { prog, mem }
     }
 
+    /// Convert to an [`Executor`] so that program can be executed
     pub fn to_executor<T>(self, io: Io) -> Executor
     where
         T: InstSet,
@@ -69,6 +71,7 @@ impl CompiledProg {
     }
 }
 
+/// Parses source code into a [`CompiledProg`] ready for serialization
 pub fn compile<T, P>(prog: P) -> CompiledProg
 where
     T: InstSet,
@@ -94,6 +97,7 @@ where
     compiled
 }
 
+/// Parses source code into a [`CompiledProg`] directly from a file
 pub fn from_file<T, P>(path: P) -> CompiledProg
 where
     T: InstSet,

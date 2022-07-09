@@ -13,11 +13,13 @@ use pest::{
     iterators::{Pair, Pairs},
     Parser,
 };
-use pest_derive::Parser;
 use regex::Regex;
 use std::{collections::BTreeMap, fmt::Display, ops::Deref, path::Path, str::FromStr};
 
 inst_set! {
+    /// The core instruction set
+    ///
+    /// Basic instructions only
     pub Core use crate::exec::{mov, cmp, io, arith, bitman}; {
         LDM => mov::ldm,
         LDD => mov::ldd,
@@ -51,7 +53,10 @@ inst_set! {
 }
 
 extend! {
-    #[cfg(not(feature = "cambridge"))]
+    /// The extended instruction set
+    ///
+    /// [`Core`], plus debugging, raw input, function call and return, and no-op instructions
+    #[cfg(feature = "extended")]
     pub Extended extends Core use crate::exec::io; {
         DBG => io::dbg,
         RIN => io::rin,
@@ -61,15 +66,28 @@ extend! {
     }
 }
 
-#[cfg(feature = "cambridge")]
-pub type DefaultSet = Core;
+// To make docs.rs ignore the feature cfgs
+mod _default_set {
+    #[cfg(not(feature = "extended"))]
+    pub type DefaultSet = super::Core;
 
-#[cfg(not(feature = "cambridge"))]
-pub type DefaultSet = Extended;
+    #[cfg(feature = "extended")]
+    pub type DefaultSet = super::Extended;
+}
 
-#[derive(Parser)]
-#[grammar = "pasm.pest"]
-struct PasmParser;
+/// Depends on whether "extended" feature is enabled.
+///
+/// If enabled, it is `Extended`, otherwise `Core`.
+pub type DefaultSet = _default_set::DefaultSet;
+
+// pest derive macro makes `Rule` enum public, so conceal in module
+mod _private {
+    #[derive(pest_derive::Parser)]
+    #[grammar = "pasm.pest"]
+    pub struct PasmParser;
+}
+
+use _private::{PasmParser, Rule};
 
 struct Mem {
     pub addr: String,
@@ -185,6 +203,9 @@ pub(crate) fn parse<T, P>(prog: P) -> (Vec<Ir<T>>, BTreeMap<usize, MemEntry>, So
     (insts, BTreeMap::from_iter(mems), src)
 }
 
+/// Parses a string into an [`Executor`]
+///
+/// This is the primary method to parse a pseudoassembly program
 pub fn jit<T, P>(prog: P, io: Io) -> Executor
 where
     T: InstSet,
@@ -207,6 +228,7 @@ where
     exe
 }
 
+/// Parses a string into an [`Executor`] directly from a file
 pub fn jit_from_file<T, P>(path: P, io: Io) -> Executor
 where
     T: InstSet,

@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "bincode")]
 use bincode::{Decode, Encode};
 
+/// Struct representing a single block of RAM
 #[derive(Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
@@ -52,6 +53,7 @@ impl Display for MemEntry {
     }
 }
 
+/// Struct providing random-access memory (RAM)
 #[derive(Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
@@ -101,5 +103,14 @@ impl Memory {
         }
 
         Ok(())
+    }
+}
+
+impl<T> From<T> for Memory
+    where
+        T: Into<BTreeMap<usize, MemEntry>>,
+{
+    fn from(x: T) -> Self {
+        Self(x.into())
     }
 }

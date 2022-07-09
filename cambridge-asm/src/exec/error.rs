@@ -11,11 +11,11 @@ use std::{
     ops::Deref,
 };
 
+/// Represents all possible runtime errors
 #[derive(Debug)]
 pub enum PasmError {
     Str(String),
     InvalidUtf8Byte(usize),
-    InvalidLiteral,
     InvalidOperand,
     NoOpInst,
     NoOperand,
@@ -32,7 +32,6 @@ impl Display for PasmError {
         match self {
             Str(s) => f.write_str(s),
             InvalidUtf8Byte(b) => f.write_fmt(format_args!("#x{b:X} is not a valid UTF-8 byte.")),
-            InvalidLiteral => f.write_str("Operand is not a decimal, hexadecimal, or binary number."),
             InvalidOperand => f.write_str("Operand is not a memory address, register, or literal. If you wanted to use a label, please double-check the label."),
             NoOperand => f.write_str("Operand missing."),
             NoOpInst => f.write_str("Instruction takes no operand."),
@@ -52,42 +51,59 @@ impl<T: Deref<Target = str>> From<T> for PasmError {
     }
 }
 
+/// Convenience type to work with [`PasmError`]
+///
+/// Comparable to [`std::io::Result`]
 pub type PasmResult<T = ()> = Result<T, PasmError>;
 
+/// Stores original source code during execution
 #[derive(Debug)]
 #[repr(transparent)]
 pub struct Source(Vec<String>);
 
 impl Source {
-    pub fn handle_err(&self, write: &mut impl std::io::Write, err: &PasmError, pos: usize) {
-        let mk_line =
-            |inst: &str, num: usize| format!("\n{num:>w$}    {inst}", w = self.whitespace());
-
-        let mut out = String::new();
-        out.push_str("Runtime Error:\n");
+    pub fn handle_err(
+        &self,
+        write: &mut impl std::io::Write,
+        err: &PasmError,
+        pos: usize,
+    ) -> std::io::Result<()> {
+        writeln!(write, "Runtime Error:")?;
+        writeln!(write)?;
 
         for (i, s) in self.0.iter().enumerate() {
             if pos == i {
                 if let Some(prev) = self.0.get(i - 1) {
-                    out.push_str(&mk_line(prev, i));
+                    writeln!(
+                        write,
+                        "{num:>w$}    {prev}",
+                        num = i,
+                        w = self.whitespace()
+                    )?;
                 }
-                out.push_str(&format!(
-                    "\n{num:>w$}    {s} <-",
+
+                writeln!(
+                    write,
+                    "{num:>w$}    {s} <-",
                     num = i + 1,
                     w = self.whitespace()
-                ));
+                )?;
+
                 if let Some(next) = self.0.get(i + 1) {
-                    out.push_str(&format!(
-                        "\n{num:>w$}    {next}",
+                    writeln!(
+                        write,
+                        "{num:>w$}    {next}",
                         num = i + 2,
                         w = self.whitespace()
-                    ));
+                    )?;
                 }
-                out.push_str(&format!("\n\nmessage: {err}"));
+
+                writeln!(write)?;
+                writeln!(write, "message: {err}")?;
                 break;
             }
         }
-        writeln!(write, "{}", out).unwrap();
+        writeln!(write)
     }
 
     fn whitespace(&self) -> usize {

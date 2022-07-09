@@ -8,9 +8,10 @@ use crate::{
     inst::Op,
 };
 
+/// Function pointer of an instruction called with [`Context`] and [`Op`] at runtime
 pub type ExecFunc = fn(&mut Context, &Op) -> PasmResult;
 
-#[derive(Clone)]
+/// Runtime representation of an instruction
 pub struct ExecInst {
     pub func: ExecFunc,
     pub op: Op,
@@ -30,24 +31,18 @@ impl ExecInst {
 ///
 /// // No Context
 /// inst!(name1 { /* Do something that doesn't need context or op*/ });
-/// // Flow control override
-/// inst!(name2 override { /* */ });
 ///
 /// // Context only
-/// inst!(name3 | ctx | { /* Do something with ctx */ });
-/// // Override
-/// inst!(name4 | ctx | override { /* */ });
+/// inst!(name3 (ctx) { /* Do something with ctx */ });
 ///
 /// // Context and op
-/// inst!(name5 | ctx, op | { /* Do something with ctx and op */ });
-/// // Override
-/// inst!(name6 | ctx, op | override { /* */ });
+/// inst!(name5 (ctx, op) { /* Do something with ctx and op */ });
 /// ```
 ///
 /// For further reference, look at the source of the module [`super::io`]
 #[macro_export]
 macro_rules! inst {
-    ($(#[$outer:meta])* $name:ident |$ctx:ident, $op:ident| { $( $code:tt )* }) => {
+    ($(#[$outer:meta])* $name:ident ($ctx:ident, $op:ident) { $( $code:tt )* }) => {
         $(#[$outer])*
         pub fn $name($ctx: &mut $crate::exec::Context, $op: & $crate::inst::Op) -> $crate::exec::PasmResult {
             use $crate::inst::Op::*;
@@ -55,7 +50,7 @@ macro_rules! inst {
             Ok(())
         }
     };
-    ($(#[$outer:meta])* $name:ident |$ctx:ident| { $( $code:tt )* }) => {
+    ($(#[$outer:meta])* $name:ident ($ctx:ident) { $( $code:tt )* }) => {
         $(#[$outer])*
         pub fn $name($ctx: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::PasmResult {
             $( $code )*
@@ -65,31 +60,6 @@ macro_rules! inst {
     ($(#[$outer:meta])* $name:ident { $( $code:tt )* }) => {
         $(#[$outer])*
         pub fn $name(_: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::PasmResult {
-            $( $code )*
-            Ok(())
-        }
-    };
-    ($(#[$outer:meta])* $name:ident |$ctx:ident, $op:ident| override { $( $code:tt )* }) => {
-        $(#[$outer])*
-        pub fn $name($ctx: &mut $crate::exec::Context, $op: & $crate::inst::Op) -> $crate::exec::PasmResult {
-            use $crate::inst::Op::*;
-            $ctx.override_flow_control();
-            $( $code )*
-            Ok(())
-        }
-    };
-    ($(#[$outer:meta])* $name:ident |$ctx:ident| override { $( $code:tt )* }) => {
-        $(#[$outer])*
-        pub fn $name($ctx: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::PasmResult {
-            $ctx.override_flow_control();
-            $( $code )*
-            Ok(())
-        }
-    };
-    ($(#[$outer:meta])* $name:ident override { $( $code:tt )* }) => {
-        $(#[$outer])*
-        pub fn $name(ctx: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::PasmResult {
-            ctx.override_flow_control();
             $( $code )*
             Ok(())
         }
@@ -117,8 +87,7 @@ mod tests {
         ];
 
         for (op, res) in ops {
-            let x = Op::from(op);
-            assert_eq!(x, res);
+            assert_eq!(Op::from(op), res);
         }
     }
 }

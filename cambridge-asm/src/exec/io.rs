@@ -6,11 +6,6 @@
 use crate::{exec::PasmError::*, inst};
 use std::io::Read;
 
-#[cfg(not(feature = "cambridge"))]
-use crate::exec::{Context, PasmError, PasmResult};
-#[cfg(not(feature = "cambridge"))]
-use crate::inst::Op;
-
 inst!(
     /// No-op
     /// Start functions with this if you don't want to compromise readability
@@ -23,10 +18,9 @@ inst!(
 inst!(
     /// End a program
     /// Note that this is **NOT A NO-OP**. It will have effects on execution flow in code that uses functions
-    end | ctx
-        | {
-            ctx.end = true;
-        }
+    end (ctx) {
+        ctx.end = true;
+    }
 );
 
 inst!(
@@ -36,8 +30,7 @@ inst!(
     /// # Syntax
     /// 1. `OUT` - output `ACC`
     /// 2. `OUT [lit | reg | addr]`
-    out | ctx,
-    op | {
+    out (ctx, op) {
         match op {
             Null => {
                 let x = ctx.acc;
@@ -78,8 +71,7 @@ inst!(
     /// # Syntax
     /// 1. `INP` - read to `ACC`
     /// 2. `INP [reg | addr]`
-    inp | ctx,
-    op | {
+    inp (ctx, op) {
         match op {
             Null => {
                 let mut buf = [0; 1];
@@ -114,13 +106,12 @@ inst!(
     /// 1. `DBG` - print entire execution context
     /// 2. `DBG [lit | reg | addr]` - print value
     /// 3. `DBG [lit | reg | addr], ...` - print value of all ops
-    #[cfg(not(feature = "cambridge"))]
-    dbg | ctx,
-    op | {
+    #[cfg(feature = "extended")]
+    dbg (ctx, op) {
         let out = match op {
             Null => format!("{ctx:?}"),
             src if src.is_usizeable() => format!("{}", src.get_val(ctx)?),
-            MultiOp(ops) if ops.iter().all(Op::is_usizeable) => ops
+            MultiOp(ops) if ops.iter().all(crate::inst::Op::is_usizeable) => ops
                 .iter()
                 .filter_map(|op| op.get_val(ctx).ok())
                 .enumerate()
@@ -147,9 +138,8 @@ inst!(
     /// # Syntax
     /// 1. `RIN` - store to `ACC`
     /// 2. `RIN [reg | addr]`
-    #[cfg(not(feature = "cambridge"))]
-    rin | ctx,
-    op | {
+    #[cfg(feature = "extended")]
+    rin (ctx, op) {
         const CR: u8 = 0xD;
         const LF: u8 = 0xA;
 
@@ -195,30 +185,32 @@ inst!(
     }
 );
 
-/// Call a function
-///
-/// # Syntax
-/// `CALL [addr]`
-#[cfg(not(feature = "cambridge"))]
-pub fn call(ctx: &mut Context, op: &Op) -> PasmResult {
-    match op {
-        &Op::Addr(addr) => {
-            ctx.ret = ctx.mar + 1;
-            ctx.override_flow_control();
-            ctx.mar = addr;
-            Ok(())
+inst!(
+    /// Call a function
+    ///
+    /// # Syntax
+    /// `CALL [addr]`
+    #[cfg(feature = "extended")]
+    call (ctx, op) {
+        match op {
+            &Addr(addr) => {
+                ctx.ret = ctx.mar + 1;
+                ctx.override_flow_control();
+                ctx.mar = addr;
+            }
+            _ => return Err(InvalidOperand),
         }
-        _ => Err(PasmError::InvalidOperand),
     }
-}
+);
 
-/// Return to address in `Ar`
-///
-/// # Syntax
-/// `RET`
-#[cfg(not(feature = "cambridge"))]
-pub fn ret(ctx: &mut Context, _: &Op) -> PasmResult {
-    ctx.override_flow_control();
-    ctx.mar = ctx.ret;
-    Ok(())
-}
+inst!(
+    /// Return to address in `Ar`
+    ///
+    /// # Syntax
+    /// `RET`
+    #[cfg(feature = "extended")]
+    ret (ctx) {
+        ctx.override_flow_control();
+        ctx.mar = ctx.ret;
+    }
+);

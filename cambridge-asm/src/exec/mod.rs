@@ -14,27 +14,27 @@ use std::{
 };
 
 /// # Arithmetic
-/// Module for arithmetic operations
+/// Arithmetic instructions
 #[allow(clippy::needless_pass_by_value, clippy::enum_glob_use)]
 pub mod arith;
 
 /// # I/O
-/// Module for input, output and debugging
+/// I/O, debugging, function call and return instructions
 #[allow(clippy::needless_pass_by_value, clippy::enum_glob_use)]
 pub mod io;
 
 /// # Data movement
-/// Module for moving data between registers and memory addresses
+/// Instructions for moving data between registers and memory addresses
 #[allow(clippy::needless_pass_by_value, clippy::enum_glob_use)]
 pub mod mov;
 
 /// # Comparison
-/// Module for making logical comparisons
+/// Instructions for making logical comparisons
 #[allow(clippy::needless_pass_by_value, clippy::enum_glob_use)]
 pub mod cmp;
 
 /// # Bit manipulation
-/// Module for logical bit manipulation
+/// Instructions for logical bit manipulation
 #[allow(clippy::needless_pass_by_value, clippy::enum_glob_use)]
 pub mod bitman;
 
@@ -44,7 +44,7 @@ mod error;
 mod memory;
 
 #[allow(clippy::enum_glob_use)]
-pub mod inst;
+mod inst;
 
 pub use error::{PasmError, PasmResult, Source};
 
@@ -52,11 +52,25 @@ pub use memory::{MemEntry, Memory};
 
 pub use inst::{ExecFunc, ExecInst};
 
+/// For platform independent I/O
+///
+/// Boxed for convenience.
 pub struct Io {
     pub read: Box<dyn stdio::Read>,
     pub write: Box<dyn stdio::Write>,
 }
 
+/// Quickly makes an [`Io`] struct
+///
+/// $read must implement [`stdio::Read`].
+/// $write must implement [`stdio::Write`].
+///
+/// # Example
+/// ```
+/// use cambridge_asm::make_io;
+///
+/// let io = make_io!(std::io::stdin(), std::io::sink());
+/// ```
 #[macro_export]
 macro_rules! make_io {
     ($read:expr, $write:expr) => {{
@@ -82,6 +96,7 @@ impl Default for Io {
     }
 }
 
+/// Tracks state of the registers and memory during execution
 #[derive(Debug, Default)]
 pub struct Context {
     pub cmp: bool,
@@ -194,8 +209,10 @@ impl Display for Context {
     }
 }
 
+/// Runtime representation of a program
 pub type ExTree = BTreeMap<usize, ExecInst>;
 
+/// Executes a program
 pub struct Executor {
     pub source: Source,
     pub prog: ExTree,
@@ -203,9 +220,13 @@ pub struct Executor {
     count: u64,
 }
 
+/// Shows execution status
 pub enum Status {
+    /// Program has finished execution
     Complete,
+    /// Program has not finished execution
     Continue,
+    /// An error has been encountered during execution
     Error(PasmError),
 }
 
@@ -219,6 +240,7 @@ impl Executor {
         }
     }
 
+    /// Advances execution by one instruction
     pub fn step<T>(&mut self) -> Status
     where
         T: InstSet,
@@ -273,7 +295,7 @@ impl Executor {
 
         if let Some(e) = err {
             self.source
-                .handle_err(&mut self.ctx.io.write, &e, self.ctx.mar);
+                .handle_err(&mut self.ctx.io.write, &e, self.ctx.mar).unwrap();
         } else {
             info!("Total instructions executed: {}", self.count);
         }
@@ -336,10 +358,10 @@ fn exec() {
 
     let mut exec = Executor::new("None", prog, Context::new(Memory::new(mem)));
 
-    #[cfg(feature = "cambridge")]
+    #[cfg(not(feature = "extended"))]
     exec.exec::<parse::Core>();
 
-    #[cfg(not(feature = "cambridge"))]
+    #[cfg(feature = "extended")]
     exec.exec::<parse::Extended>();
 
     assert_eq!(exec.ctx.acc, 3);

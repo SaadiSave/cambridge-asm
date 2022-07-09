@@ -35,7 +35,8 @@ mod extension {
     use cambridge_asm::parse::Core;
 
     inst! {
-        ext | ctx | override {
+        ext (ctx) {
+            ctx.override_flow_control();
             writeln!(ctx.io.write, "This is a custom instruction").unwrap();
             ctx.mar += 1;
             ctx.gprs[0] = 20;
@@ -80,25 +81,25 @@ NONE:
 mod custom {
     use super::TestStdout;
     inst! {
-        h | ctx | {
+        h (ctx) {
             write!(ctx.io.write, "H").unwrap();
         }
     }
 
     inst! {
-        e | ctx | {
+        e (ctx) {
             write!(ctx.io.write, "E").unwrap();
         }
     }
 
     inst! {
-        l | ctx | {
+        l (ctx) {
             write!(ctx.io.write, "L").unwrap();
         }
     }
 
     inst! {
-        o | ctx | {
+        o (ctx) {
             write!(ctx.io.write, "O").unwrap();
         }
     }

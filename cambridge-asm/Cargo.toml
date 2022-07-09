@@ -9,8 +9,8 @@ repository = "https://github.com/SaadiSave/cambridge-asm"
 rust-version = "1.59"
 
 [features]
-default = ["compile"]
-cambridge = []
+default = ["compile", "extended"]
+extended = []
 compile = ["serde", "bincode"]
 
 [dependencies]

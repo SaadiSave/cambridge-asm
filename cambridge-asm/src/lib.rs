@@ -5,10 +5,11 @@
 
 #![warn(clippy::pedantic)]
 #![allow(
-    clippy::missing_errors_doc,
-    clippy::missing_panics_doc,
-    clippy::must_use_candidate
+clippy::missing_errors_doc,
+clippy::missing_panics_doc,
+clippy::must_use_candidate
 )]
+#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 
 #[macro_use]
 extern crate log;
@@ -21,12 +22,12 @@ pub mod parse;
 pub mod compile;
 
 #[cfg(test)]
-#[cfg(feature = "cambridge")]
+#[cfg(not(feature = "extended"))]
 const PROGRAMS: [(&str, usize, &[u8]); 1] =
     [(include_str!("../examples/hello.pasm"), 207, b"HELLO\n")];
 
 #[cfg(test)]
-#[cfg(not(feature = "cambridge"))]
+#[cfg(feature = "extended")]
 const PROGRAMS: [(&str, usize, &[u8]); 4] = [
     (include_str!("../examples/division.pasm"), 65, b"5\nA\n"),
     (

@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "bincode")]
 use bincode::{Decode, Encode};
 
+/// Represents all possible types of pseudoassembly operands
 #[derive(PartialEq, Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
@@ -25,21 +26,12 @@ pub enum Op {
     Ar,
     Addr(usize),
     Literal(usize),
-    // Prepare for gpr feature
     Gpr(usize),
     MultiOp(Vec<Op>),
     Null,
 }
 
 impl Op {
-    // pub fn map_res<T, E>(&self, f: impl Fn(&Op) -> Result<T, E>) -> Result<T, E> {
-    //     f(self)
-    // }
-    //
-    // pub fn map<O>(&self, f: impl Fn(&Op) -> O) -> O {
-    //     f(self)
-    // }
-
     pub fn is_none(&self) -> bool {
         matches!(self, Op::Null)
     }
@@ -100,7 +92,7 @@ impl From<Op> for String {
     }
 }
 
-pub fn get_literal(mut op: String) -> usize {
+fn get_literal(mut op: String) -> usize {
     if op.starts_with('#') {
         op.remove(0);
 
@@ -125,7 +117,7 @@ pub fn get_literal(mut op: String) -> usize {
     }
 }
 
-pub fn get_reg_no(mut op: String) -> usize {
+fn get_reg_no(mut op: String) -> usize {
     op = op.to_lowercase();
     op.remove(0);
 
@@ -173,6 +165,10 @@ impl<T: Deref<Target = str>> From<T> for Op {
     }
 }
 
+/// Trait for instruction sets
+///
+/// Implement this for custom instruction sets. Manual implementation is tedious,
+/// so use [`inst_set`] or [`extend`] macros if possible
 pub trait InstSet: FromStr + ToString
 where
     <Self as FromStr>::Err: Display,
@@ -181,6 +177,9 @@ where
     fn from_func_ptr(_: ExecFunc) -> Result<Self, <Self as FromStr>::Err>;
 }
 
+/// Macro to generate an instruction set
+///
+/// For an example, go to this [file](https://github.com/SaadiSave/cambridge-asm/blob/main/cambridge-asm/tests/int_test.rs)
 #[macro_export]
 macro_rules! inst_set {
     ($(#[$outer:meta])* $vis:vis $name:ident { $( $inst:ident => $func:expr,)+ }) => {
@@ -237,6 +236,9 @@ macro_rules! inst_set {
     };
 }
 
+/// Macro to extend an instruction set
+///
+/// For an example, go to this [file](https://github.com/SaadiSave/cambridge-asm/blob/main/cambridge-asm/tests/int_test.rs)
 #[macro_export]
 macro_rules! extend {
     ($(#[$outer:meta])* $vis:vis $name:ident extends $parent:ident { $( $inst:ident => $func:expr,)+ }) => {
@@ -296,6 +298,7 @@ macro_rules! extend {
     };
 }
 
+/// Post-parsing representation of an instruction
 pub struct Inst<T>
 where
     T: InstSet,
