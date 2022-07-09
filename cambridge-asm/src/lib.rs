@@ -5,9 +5,9 @@
 
 #![warn(clippy::pedantic)]
 #![allow(
-clippy::missing_errors_doc,
-clippy::missing_panics_doc,
-clippy::must_use_candidate
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::must_use_candidate
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 

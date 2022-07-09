@@ -132,10 +132,10 @@ impl StrInst {
 }
 
 pub(crate) fn parse<T, P>(prog: P) -> (Vec<Ir<T>>, BTreeMap<usize, MemEntry>, Source)
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
-        P: Deref<Target=str>,
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
+    P: Deref<Target = str>,
 {
     let mut line_ending = if prog.contains("\r\n") {
         // Windows
