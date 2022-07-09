@@ -107,8 +107,8 @@ impl Memory {
 }
 
 impl<T> From<T> for Memory
-    where
-        T: Into<BTreeMap<usize, MemEntry>>,
+where
+    T: Into<BTreeMap<usize, MemEntry>>,
 {
     fn from(x: T) -> Self {
         Self(x.into())

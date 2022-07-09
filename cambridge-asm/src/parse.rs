@@ -101,9 +101,9 @@ impl Mem {
 }
 
 pub(crate) struct Ir<T>
-    where
-        T: InstSet,
-        <T as FromStr>::Err: Display,
+where
+    T: InstSet,
+    <T as FromStr>::Err: Display,
 {
     pub addr: usize,
     pub inst: Inst<T>,

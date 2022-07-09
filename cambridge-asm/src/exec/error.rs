@@ -74,12 +74,7 @@ impl Source {
         for (i, s) in self.0.iter().enumerate() {
             if pos == i {
                 if let Some(prev) = self.0.get(i - 1) {
-                    writeln!(
-                        write,
-                        "{num:>w$}    {prev}",
-                        num = i,
-                        w = self.whitespace()
-                    )?;
+                    writeln!(write, "{num:>w$}    {prev}", num = i, w = self.whitespace())?;
                 }
 
                 writeln!(

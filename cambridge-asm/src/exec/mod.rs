@@ -295,7 +295,8 @@ impl Executor {
 
         if let Some(e) = err {
             self.source
-                .handle_err(&mut self.ctx.io.write, &e, self.ctx.mar).unwrap();
+                .handle_err(&mut self.ctx.io.write, &e, self.ctx.mar)
+                .unwrap();
         } else {
             info!("Total instructions executed: {}", self.count);
         }
