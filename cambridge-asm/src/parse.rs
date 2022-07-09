@@ -82,10 +82,10 @@ impl Mem {
     }
 }
 
-pub struct Ir<T>
-where
-    T: InstSet,
-    <T as FromStr>::Err: Display,
+pub(crate) struct Ir<T>
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
 {
     pub addr: usize,
     pub inst: Inst<T>,
@@ -113,11 +113,11 @@ impl StrInst {
     }
 }
 
-pub fn parse<T, P>(prog: P) -> (Vec<Ir<T>>, BTreeMap<usize, MemEntry>, Source)
-where
-    T: InstSet,
-    <T as FromStr>::Err: Display,
-    P: Deref<Target = str>,
+pub(crate) fn parse<T, P>(prog: P) -> (Vec<Ir<T>>, BTreeMap<usize, MemEntry>, Source)
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
+        P: Deref<Target=str>,
 {
     let mut line_ending = if prog.contains("\r\n") {
         // Windows

@@ -18,7 +18,7 @@ use bincode::{Decode, Encode};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
-pub struct CompiledInst {
+struct CompiledInst {
     pub inst: String,
     pub op: Op,
 }
@@ -29,17 +29,17 @@ impl CompiledInst {
     }
 }
 
-pub type CompiledTree = BTreeMap<usize, CompiledInst>;
+type CompiledTree = BTreeMap<usize, CompiledInst>;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct CompiledProg {
-    pub prog: CompiledTree,
-    pub mem: Memory,
+    prog: CompiledTree,
+    mem: Memory,
 }
 
 impl CompiledProg {
-    pub fn new(prog: CompiledTree, mem: Memory) -> Self {
+    fn new(prog: CompiledTree, mem: Memory) -> Self {
         Self { prog, mem }
     }
 

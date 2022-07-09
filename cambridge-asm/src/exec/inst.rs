@@ -44,7 +44,7 @@ impl ExecInst {
 /// inst!(name6 | ctx, op | override { /* */ });
 /// ```
 ///
-/// For further reference, look at the source of the module [`exec::io`]
+/// For further reference, look at the source of the module [`super::io`]
 #[macro_export]
 macro_rules! inst {
     ($(#[$outer:meta])* $name:ident |$ctx:ident, $op:ident| { $( $code:tt )* }) => {
