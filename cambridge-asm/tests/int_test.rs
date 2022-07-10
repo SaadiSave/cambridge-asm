@@ -36,9 +36,7 @@ mod extension {
 
     inst! {
         ext (ctx) {
-            ctx.override_flow_control();
             writeln!(ctx.io.write, "This is a custom instruction").unwrap();
-            ctx.mar += 1;
             ctx.gprs[0] = 20;
         }
     }

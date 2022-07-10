@@ -1,12 +1,16 @@
 [package]
 name = "cambridge-asm"
-version = "0.15.0"
+version = "0.15.1"
 authors = ["SaadiSave <https://github.com/SaadiSave>"]
 edition = "2021"
 license = "MPL-2.0"
 description = "Run pseudoassembly from Cambridge International syllabus 9618"
 repository = "https://github.com/SaadiSave/cambridge-asm"
 rust-version = "1.59"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["compile", "extended"]
