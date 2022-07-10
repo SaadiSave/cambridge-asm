@@ -35,6 +35,3 @@ jobs:
 
       - name: Login
         run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
-
-      - name: Release
-        run: gh release create lib-${{ env.RELEASE_VERSION }} -t "cambridge-asm-lib-${{ env.RELEASE_VERSION }}"
