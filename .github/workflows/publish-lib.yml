@@ -32,6 +32,3 @@ jobs:
 
       - name: Publish crate
         run: cd cambridge-asm && cargo publish
-
-      - name: Login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
