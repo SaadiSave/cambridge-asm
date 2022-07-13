@@ -75,11 +75,11 @@ impl std::str::FromStr for Ext {
     }
 }
 
-impl ToString for Ext {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Ext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::EXT => "EXT".into(),
-            Self::Parent(p) => p.to_string(),
+            Self::EXT => f.write_str("EXT"),
+            Self::Parent(p) => write!(f, "{}", p),
         }
     }
 }

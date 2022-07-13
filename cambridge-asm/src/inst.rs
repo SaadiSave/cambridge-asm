@@ -59,12 +59,12 @@ impl Op {
     }
 }
 
-impl ToString for Op {
-    fn to_string(&self) -> String {
+impl Display for Op {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         #[allow(clippy::enum_glob_use)]
         use Op::*;
 
-        match self {
+        let s = match self {
             Null => "None".to_string(),
             Acc => "ACC".to_string(),
             Ix => "IX".to_string(),
@@ -82,7 +82,9 @@ impl ToString for Op {
                     format!("{out}{op},")
                 }
             }),
-        }
+        };
+
+        f.write_str(&s)
     }
 }
 
@@ -169,7 +171,7 @@ impl<T: Deref<Target = str>> From<T> for Op {
 ///
 /// Implement this for custom instruction sets. Manual implementation is tedious,
 /// so use [`inst_set`] or [`extend`] macros if possible
-pub trait InstSet: FromStr + ToString
+pub trait InstSet: FromStr + Display
 where
     <Self as FromStr>::Err: Display,
 {
@@ -204,11 +206,11 @@ macro_rules! inst_set {
         }
 
         $(#[$outer])*
-        impl ToString for $name {
-            fn to_string(&self) -> String {
-                match self {
-                    $(Self::$inst => stringify!($inst).into(),)+
-                }
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(match self {
+                    $(Self::$inst => stringify!($inst),)+
+                })
             }
         }
 
@@ -264,11 +266,11 @@ macro_rules! extend {
         }
 
         $(#[$outer])*
-        impl ToString for $name {
-            fn to_string(&self) -> String {
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match self {
-                    $(Self::$inst => stringify!($inst).into(),)+
-                    Self::Parent(p) => p.to_string(),
+                    $(Self::$inst => f.write_str(stringify!($inst)),)+
+                    Self::Parent(p) => write!(f, "{}", p),
                 }
             }
         }
