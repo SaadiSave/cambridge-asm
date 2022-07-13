@@ -65,23 +65,20 @@ impl Display for Op {
         use Op::*;
 
         let s = match self {
-            Null => "None".to_string(),
-            Acc => "ACC".to_string(),
-            Ix => "IX".to_string(),
-            Cmp => "CMP".to_string(),
-            Ar => "AR".to_string(),
+            Null => "None".into(),
+            Acc => "ACC".into(),
+            Ix => "IX".into(),
+            Cmp => "CMP".into(),
+            Ar => "AR".into(),
             Addr(x) => format!("{x}"),
             Literal(x) => format!("#{x}"),
             Fail(x) => format!("`{x}` was not parsed successfully"),
             Gpr(x) => format!("r{x}"),
-            MultiOp(v) => v.iter().enumerate().fold(String::new(), |out, (idx, op)| {
-                let op = op.to_string();
-                if idx == v.len() - 1 {
-                    format!("{out}{op}")
-                } else {
-                    format!("{out}{op},")
-                }
-            }),
+            MultiOp(v) => v
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(","),
         };
 
         f.write_str(&s)

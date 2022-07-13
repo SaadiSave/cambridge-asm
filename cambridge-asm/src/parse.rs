@@ -222,7 +222,7 @@ where
     let exe = Executor::new(src, prog, Context::with_io(Memory::new(mem), io));
 
     info!("Executor created");
-    debug!("{}\n", exe);
+    debug!("{}\n", exe.display::<T>().unwrap_or_else(|s| panic!("{s}")));
     debug!("The initial context:\n{}\n", exe.ctx);
 
     exe

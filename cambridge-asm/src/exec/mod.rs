@@ -259,10 +259,8 @@ impl Executor {
 
             trace!(
                 "Executing instruction {} {}",
-                T::from_func_ptr(inst.func)
-                    .unwrap_or_else(|msg| panic!("{msg}"))
-                    .to_string(),
-                inst.op.to_string()
+                T::from_func_ptr(inst.func).unwrap_or_else(|msg| panic!("{msg}")),
+                inst.op
             );
 
             match (inst.func)(&mut self.ctx, &inst.op) {
@@ -301,13 +299,35 @@ impl Executor {
             info!("Total instructions executed: {}", self.count);
         }
     }
+
+    pub fn display<T>(&self) -> Result<String, <T as FromStr>::Err>
+    where
+        T: InstSet,
+        <T as FromStr>::Err: Display,
+    {
+        use std::fmt::Write;
+
+        let mut s = String::new();
+
+        s.reserve(self.prog.len() * 15);
+
+        let _ = writeln!(s, "Executor {{");
+
+        for (addr, ExecInst { op, func }) in &self.prog {
+            let _ = writeln!(s, "{addr:>6}: {func} {op}", func = T::from_func_ptr(*func)?);
+        }
+
+        s.push('}');
+
+        Ok(s)
+    }
 }
 
 impl Display for Executor {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str("Executor {\n")?;
+        writeln!(f, "Executor {{")?;
         for (addr, ExecInst { op, .. }) in &self.prog {
-            f.write_fmt(format_args!("{addr:>6}: {op}\n", op = op.to_string()))?;
+            writeln!(f, "{addr:>6}: {op}", op = op)?;
         }
         f.write_str("}")
     }
