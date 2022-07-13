@@ -83,7 +83,7 @@ macro_rules! make_io {
 
 impl Debug for Io {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str("")
+        f.write_str("<struct Io>")
     }
 }
 
