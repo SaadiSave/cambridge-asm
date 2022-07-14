@@ -13,15 +13,19 @@ name = "casm"
 path = "src/main.rs"
 
 [features]
-cambridge = ["cambridge-asm/cambridge"]
+default = ["cambridge-asm/default"]
 
 [dependencies]
 env_logger = "0.9"
-cambridge-asm = "0.13"
 serde_json = "1"
-ron = "0.6"
+ron = "0.7"
 serde_yaml = "0.8"
 bincode = "2.0.0-rc.1"
+
+[dependencies.cambridge-asm]
+version = "0.15"
+default-features = false
+features = ["compile"]
 
 [dependencies.clap]
 version = "3"

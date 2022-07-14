@@ -7,29 +7,17 @@
 
 use cambridge_asm::{
     compile::{self, CompiledProg},
-    exec::{Executor, Io},
-    parse::{self, InstSet},
+    exec::Io,
+    parse::{self, DefaultSet},
 };
-use clap::{ArgEnum, Parser, Subcommand};
+use clap::{ArgEnum, Parser};
 use std::ffi::OsString;
-
-#[cfg(feature = "cambridge")]
-const INST_SET: InstSet = parse::get_fn;
-
-#[cfg(not(feature = "cambridge"))]
-const INST_SET: InstSet = parse::get_fn_ext;
 
 #[derive(Parser)]
 #[clap(name = "Cambridge Pseudoassembly Interpreter")]
-#[clap(version = "0.13")]
+#[clap(version = env!("CARGO_PKG_VERSION"))]
 #[clap(author = "Saadi Save <github.com/SaadiSave>")]
 #[clap(about = "Run pseudoassembly from Cambridge International syllabus 9618 (2021)")]
-struct Cli {
-    #[clap(subcommand)]
-    commands: Commands,
-}
-
-#[derive(Subcommand)]
 enum Commands {
     /// Run compiled or plaintext pseudoassembly
     Run {
@@ -92,122 +80,139 @@ enum OutFormats {
     Bin,
 }
 
-#[allow(clippy::enum_glob_use)]
 fn main() -> std::io::Result<()> {
-    let cli = Cli::parse();
-
     #[cfg(not(debug_assertions))]
     std::panic::set_hook(Box::new(handle_panic));
 
+    let command = Commands::parse();
+
     let io = Io::default();
 
-    match cli.commands {
+    match command {
         Commands::Run {
             path,
             verbosity,
             bench,
             format,
-        } => {
-            use InFormats::*;
-
-            let parser: Box<dyn FnOnce(Vec<u8>, InstSet) -> Executor> = match format {
-                Pasm => Box::new(|v, set| parse::parse(String::from_utf8_lossy(&v), set, io)),
-                Json => Box::new(|v, set| {
-                    serde_json::from_str::<CompiledProg>(&String::from_utf8_lossy(&v))
-                        .unwrap()
-                        .to_executor(set, io)
-                }),
-                Ron => Box::new(|v, set| {
-                    ron::from_str::<CompiledProg>(&String::from_utf8_lossy(&v))
-                        .unwrap()
-                        .to_executor(set, io)
-                }),
-                Yaml => Box::new(|v, set| {
-                    serde_yaml::from_str::<CompiledProg>(&String::from_utf8_lossy(&v))
-                        .unwrap()
-                        .to_executor(set, io)
-                }),
-                Bin => Box::new(|v, set| {
-                    bincode::decode_from_slice::<CompiledProg, _>(&v, bincode::config::standard())
-                        .unwrap()
-                        .0
-                        .to_executor(set, io)
-                }),
-            };
-
-            init_logger(verbosity);
-            let prog_bytes = std::fs::read(path)?;
-            let mut timer = bench.then(std::time::Instant::now);
-
-            let mut executor = parser(prog_bytes, INST_SET);
-
-            timer = timer.map(|t| {
-                println!("Total parse time: {:?}", t.elapsed());
-                std::time::Instant::now()
-            });
-            if timer.is_some() || verbosity > 0 {
-                println!("Execution starts on next line");
-            }
-
-            executor.exec();
-
-            let _ = timer.map(|t| println!("Execution done\nExecution time: {:?}", t.elapsed()));
-        }
+        } => run(path, verbosity, bench, format, io)?,
         Commands::Compile {
-            mut input,
+            input,
             output,
             verbosity,
             format,
             minify,
-        } => {
-            use OutFormats::*;
-
-            let serializer: Box<dyn FnOnce(CompiledProg) -> Vec<u8>> = match format {
-                Json => Box::new(|prog| {
-                    use serde_json::ser::{to_string, to_string_pretty};
-
-                    (if minify {
-                        to_string(&prog).unwrap()
-                    } else {
-                        to_string_pretty(&prog).unwrap()
-                    })
-                    .into_bytes()
-                }),
-                Ron => Box::new(|prog| {
-                    use ron::ser::{to_string, to_string_pretty, PrettyConfig};
-
-                    (if minify {
-                        to_string(&prog).unwrap()
-                    } else {
-                        to_string_pretty(&prog, PrettyConfig::default()).unwrap()
-                    })
-                    .into_bytes()
-                }),
-                Yaml => Box::new(|prog| serde_yaml::to_string(&prog).unwrap().into_bytes()),
-                Bin => Box::new(|prog| {
-                    bincode::encode_to_vec(&prog, bincode::config::standard()).unwrap()
-                }),
-            };
-
-            init_logger(verbosity);
-            let prog = std::fs::read_to_string(&input)?;
-            let compiled = compile::compile(prog, INST_SET);
-
-            let output = output.unwrap_or_else(|| {
-                input.push(match format {
-                    Json => ".json",
-                    Ron => ".ron",
-                    Yaml => ".yaml",
-                    Bin => ".bin",
-                });
-                input
-            });
-
-            std::fs::write(output, &*serializer(compiled))?;
-        }
+        } => compile(input, output, verbosity, format, minify)?,
     }
 
     Ok(())
+}
+
+#[allow(clippy::enum_glob_use, clippy::needless_pass_by_value)]
+fn run(
+    path: OsString,
+    verbosity: usize,
+    bench: bool,
+    format: InFormats,
+    io: Io,
+) -> std::io::Result<()> {
+    use InFormats::*;
+
+    init_logger(verbosity);
+
+    let prog_bytes = std::fs::read(path)?;
+
+    let mut timer = bench.then(std::time::Instant::now);
+
+    let mut executor = match format {
+        Pasm => parse::jit::<DefaultSet, _>(String::from_utf8_lossy(&prog_bytes), io),
+        Json => serde_json::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))
+            .unwrap()
+            .to_executor::<DefaultSet>(io),
+        Ron => ron::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))
+            .unwrap()
+            .to_executor::<DefaultSet>(io),
+        Yaml => serde_yaml::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))
+            .unwrap()
+            .to_executor::<DefaultSet>(io),
+        Bin => {
+            bincode::decode_from_slice::<CompiledProg, _>(&prog_bytes, bincode::config::standard())
+                .unwrap()
+                .0
+                .to_executor::<DefaultSet>(io)
+        }
+    };
+
+    timer = timer.map(|t| {
+        println!("Total parse time: {:?}", t.elapsed());
+        std::time::Instant::now()
+    });
+    if timer.is_some() || verbosity > 0 {
+        println!("Execution starts on next line");
+    }
+
+    executor.exec::<DefaultSet>();
+
+    let _ = timer.map(|t| println!("Execution done\nExecution time: {:?}", t.elapsed()));
+
+    Ok(())
+}
+
+#[allow(clippy::enum_glob_use, clippy::needless_pass_by_value)]
+fn compile(
+    mut input: OsString,
+    output: Option<OsString>,
+    verbosity: usize,
+    format: OutFormats,
+    minify: bool,
+) -> std::io::Result<()> {
+    use OutFormats::*;
+
+    init_logger(verbosity);
+
+    let prog = std::fs::read_to_string(&input)?;
+
+    let compiled = compile::compile::<DefaultSet, _>(prog);
+
+    let output_path = output.unwrap_or_else(|| {
+        input.push(match format {
+            Json => ".json",
+            Ron => ".ron",
+            Yaml => ".yaml",
+            Bin => ".bin",
+        });
+        input
+    });
+
+    let serialised = match format {
+        Json => {
+            use serde_json::ser::{to_string, to_string_pretty};
+
+            {
+                if minify {
+                    to_string(&compiled).unwrap()
+                } else {
+                    to_string_pretty(&compiled).unwrap()
+                }
+            }
+            .into_bytes()
+        }
+        Ron => {
+            use ron::ser::{to_string, to_string_pretty, PrettyConfig};
+
+            {
+                if minify {
+                    to_string(&compiled).unwrap()
+                } else {
+                    to_string_pretty(&compiled, PrettyConfig::default()).unwrap()
+                }
+            }
+            .into_bytes()
+        }
+        Yaml => serde_yaml::to_string(&compiled).unwrap().into_bytes(),
+        Bin => bincode::encode_to_vec(&compiled, bincode::config::standard()).unwrap(),
+    };
+
+    std::fs::write(output_path, serialised)
 }
 
 fn init_logger(verbosity: usize) {
