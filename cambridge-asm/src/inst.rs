@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use bincode::{Decode, Encode};
 
 /// Represents all possible types of pseudoassembly operands
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub enum Op {
