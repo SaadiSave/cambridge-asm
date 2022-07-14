@@ -28,7 +28,7 @@ def build():
 
 def build_caie():
     for triple, _ in targets:
-        system(f"cargo build --features=cambridge --profile prod --target {triple}")
+        system(f"cargo build --no-default-features --profile prod --target {triple}")
 
     for triple, arch in targets:
         system(
