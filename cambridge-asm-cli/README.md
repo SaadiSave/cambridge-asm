@@ -1,6 +1,6 @@
 # cambridge-asm-cli
 
-[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/saadisave/cambridge-asm/Publish%20CLI?style=for-the-badge)](https://github.com/SaadiSave/cambridge-asm/actions/workflows/rust.yml) [![Crates.io](https://img.shields.io/crates/v/cambridge-asm?style=for-the-badge)](https://crates.io/crates/cambridge-asm)
+[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/saadisave/cambridge-asm/Publish%20CLI?style=for-the-badge)](https://github.com/SaadiSave/cambridge-asm/actions/workflows/publish-cli.yml) [![Crates.io](https://img.shields.io/crates/v/cambridge-asm?style=for-the-badge)](https://crates.io/crates/cambridge-asm)
 
 Command line interface to execute pseudoassembly programs
 
