@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use bincode::{Decode, Encode};
 
 /// Struct representing a single block of RAM
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default, PartialEq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub struct MemEntry {
@@ -54,7 +54,7 @@ impl Display for MemEntry {
 }
 
 /// Struct providing random-access memory (RAM)
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 #[repr(transparent)]
