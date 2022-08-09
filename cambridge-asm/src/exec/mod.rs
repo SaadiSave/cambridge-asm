@@ -43,14 +43,18 @@ mod error;
 
 mod memory;
 
+mod debug;
+
 #[allow(clippy::enum_glob_use)]
 mod inst;
 
 pub use error::{PasmError, PasmResult, Source};
 
-pub use memory::{MemEntry, Memory};
+pub use memory::Memory;
 
 pub use inst::{ExecFunc, ExecInst};
+
+pub use debug::DebugInfo;
 
 /// For platform independent I/O
 ///
@@ -163,11 +167,7 @@ impl Context {
     #[inline]
     pub fn modify(&mut self, op: &Op, f: impl Fn(&mut usize)) -> PasmResult {
         match op {
-            Op::Addr(x) => {
-                let mut res = self.mem.get(x)?;
-                f(&mut res);
-                self.mem.write(x, res)?;
-            }
+            Op::Addr(x) => f(self.mem.get_mut(x)?),
             op if op.is_register() => f(self.get_mut_register(op)),
             _ => unreachable!(),
         }
@@ -179,31 +179,27 @@ impl Context {
 impl Display for Context {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.write_str("Context {\n")?;
-        f.write_fmt(format_args!("{:>6}: {}\n", "mar", self.mar))?;
-        f.write_fmt(format_args!("{:>6}: {}\n", "acc", self.acc))?;
-        f.write_fmt(format_args!("{:>6}: {}\n", "ix", self.ix))?;
-        f.write_fmt(format_args!("{:>6}: {}\n", "cmp", self.cmp))?;
-        f.write_fmt(format_args!(
-            "{:>6}: {}\n",
-            "gprs",
-            self.gprs
-                .iter()
-                .enumerate()
-                .fold(String::from("["), |s, (num, val)| {
-                    if num == self.gprs.len() - 1 {
-                        format!("{s}r{num} = {val}]")
-                    } else {
-                        format!("{s}r{num} = {val}, ")
-                    }
-                })
-        ))?;
-        f.write_fmt(format_args!("{:>6}: Memory {{\n", "mem"))?;
+        writeln!(f, "{:>6}: {}", "mar", self.mar)?;
+        writeln!(f, "{:>6}: {}", "acc", self.acc)?;
+        writeln!(f, "{:>6}: {}", "ix", self.ix)?;
+        writeln!(f, "{:>6}: {}", "cmp", self.cmp)?;
+        write!(f, "{:>6}: [", "gprs")?;
 
-        for (addr, entry) in self.mem.iter() {
-            f.write_fmt(format_args!("{addr:>8}: {entry},\n"))?;
+        for (idx, val) in self.gprs.iter().enumerate() {
+            if idx == self.gprs.len() - 1 {
+                writeln!(f, "r{idx} = {val}]")?;
+            } else {
+                write!(f, "r{idx} = {val}, ")?;
+            }
         }
 
-        f.write_fmt(format_args!("{:>3}}}\n", ""))?;
+        writeln!(f, "{:>6}: Memory {{", "mem")?;
+
+        for (addr, entry) in self.mem.iter() {
+            writeln!(f, "{addr:>8}: {entry},")?;
+        }
+
+        writeln!(f, "{:>6}}}", "")?;
 
         f.write_str("}")
     }
@@ -214,6 +210,7 @@ pub type ExTree = BTreeMap<usize, ExecInst>;
 
 /// Executes a program
 pub struct Executor {
+    pub debug_info: DebugInfo,
     pub source: Source,
     pub prog: ExTree,
     pub ctx: Context,
@@ -231,8 +228,14 @@ pub enum Status {
 }
 
 impl Executor {
-    pub fn new(source: impl Into<Source>, prog: ExTree, ctx: Context) -> Self {
+    pub fn new(
+        source: impl Into<Source>,
+        prog: ExTree,
+        ctx: Context,
+        debug_info: DebugInfo,
+    ) -> Self {
         Self {
+            debug_info,
             source: source.into(),
             prog,
             ctx,
@@ -325,7 +328,7 @@ impl Executor {
 
 impl Display for Executor {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        writeln!(f, "Executor {{")?;
+        f.write_str("Executor {")?;
         for (addr, ExecInst { op, .. }) in &self.prog {
             writeln!(f, "{addr:>6}: {op}", op = op)?;
         }
@@ -369,21 +372,17 @@ fn exec() {
         ],
     );
 
-    let mem: BTreeMap<usize, MemEntry> = BTreeMap::from([
-        (200, 0.into()),
-        (201, 5.into()),
-        (202, 0.into()),
-        (203, 0.into()),
-        (204, 15.into()),
-    ]);
+    let mem: BTreeMap<usize, usize> =
+        BTreeMap::from([(200, 0), (201, 5), (202, 0), (203, 0), (204, 15)]);
 
-    let mut exec = Executor::new("None", prog, Context::new(Memory::new(mem)));
+    let mut exec = Executor::new(
+        "None",
+        prog,
+        Context::new(Memory::new(mem)),
+        DebugInfo::default(),
+    );
 
-    #[cfg(not(feature = "extended"))]
-    exec.exec::<parse::Core>();
-
-    #[cfg(feature = "extended")]
-    exec.exec::<parse::Extended>();
+    exec.exec::<parse::DefaultSet>();
 
     assert_eq!(exec.ctx.acc, 3);
 }

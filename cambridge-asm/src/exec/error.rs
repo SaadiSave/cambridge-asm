@@ -31,13 +31,13 @@ impl Display for PasmError {
 
         match self {
             Str(s) => f.write_str(s),
-            InvalidUtf8Byte(b) => f.write_fmt(format_args!("#x{b:X} is not a valid UTF-8 byte.")),
+            InvalidUtf8Byte(b) => write!(f, "#x{b:X} is not a valid UTF-8 byte."),
             InvalidOperand => f.write_str("Operand is not a memory address, register, or literal. If you wanted to use a label, please double-check the label."),
             NoOperand => f.write_str("Operand missing."),
             NoOpInst => f.write_str("Instruction takes no operand."),
-            InvalidMemoryLoc(addr) => f.write_fmt(format_args!("Memory address {addr} does not exist.")),
-            InvalidIndirectAddress(addr) => f.write_fmt(format_args!("The value at memory address {addr} does not point to a valid memory address")),
-            InvalidIndexedAddress(addr, offset) => f.write_fmt(format_args!("The memory address {addr} offset by IX value {offset} is not a valid memory address ({addr} + {offset} = {})", addr + offset)),
+            InvalidMemoryLoc(addr) => write!(f, "Memory address {addr} does not exist."),
+            InvalidIndirectAddress(addr) => write!(f, "The value at memory address {addr} does not point to a valid memory address"),
+            InvalidIndexedAddress(addr, offset) => write!(f, "The memory address {addr} offset by IX value {offset} is not a valid memory address ({addr} + {offset} = {})", addr + offset),
             InvalidMultiOp => f.write_str("Operand sequence is invalid"),
         }
     }
@@ -57,7 +57,7 @@ impl<T: Deref<Target = str>> From<T> for PasmError {
 pub type PasmResult<T = ()> = Result<T, PasmError>;
 
 /// Stores original source code during execution
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 #[repr(transparent)]
 pub struct Source(Vec<String>);
 
@@ -121,9 +121,9 @@ impl<T: Deref<Target = str>> From<T> for Source {
 impl Display for Source {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         for inst in &self.0 {
-            f.write_fmt(format_args!("    {inst}\n"))?;
+            writeln!(f, "    {inst}")?;
         }
 
-        f.write_str("")
+        Ok(())
     }
 }

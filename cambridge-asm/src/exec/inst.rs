@@ -12,6 +12,7 @@ use crate::{
 pub type ExecFunc = fn(&mut Context, &Op) -> PasmResult;
 
 /// Runtime representation of an instruction
+#[derive(Clone)]
 pub struct ExecInst {
     pub func: ExecFunc,
     pub op: Op,

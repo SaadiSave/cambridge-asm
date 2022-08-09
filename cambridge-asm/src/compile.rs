@@ -4,7 +4,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use crate::{
-    exec::{Context, ExecInst, Executor, Io, Memory},
+    exec::{Context, DebugInfo, ExecInst, Executor, Io, Memory},
     inst::{Inst, InstSet, Op},
     parse::{parse, Ir},
 };
@@ -37,11 +37,16 @@ type CompiledTree = BTreeMap<usize, CompiledInst>;
 pub struct CompiledProg {
     prog: CompiledTree,
     mem: Memory,
+    debug_info: Option<DebugInfo>,
 }
 
 impl CompiledProg {
-    fn new(prog: CompiledTree, mem: Memory) -> Self {
-        Self { prog, mem }
+    fn new(prog: CompiledTree, mem: Memory, debug_info: Option<DebugInfo>) -> Self {
+        Self {
+            prog,
+            mem,
+            debug_info,
+        }
     }
 
     /// Convert to an [`Executor`] so that program can be executed
@@ -53,11 +58,11 @@ impl CompiledProg {
         let prog = self
             .prog
             .into_iter()
-            .map(|(addr, CompiledInst { inst: opfun, op })| {
+            .map(|(addr, CompiledInst { inst, op })| {
                 (
                     addr,
                     ExecInst::new(
-                        (&opfun)
+                        (&inst)
                             .parse::<T>()
                             .unwrap_or_else(|s| panic!("{s}"))
                             .as_func_ptr(),
@@ -67,18 +72,23 @@ impl CompiledProg {
             })
             .collect();
 
-        Executor::new("", prog, Context::with_io(self.mem, io))
+        Executor::new(
+            "",
+            prog,
+            Context::with_io(self.mem, io),
+            self.debug_info.unwrap_or_default(),
+        )
     }
 }
 
 /// Parses source code into a [`CompiledProg`] ready for serialization
-pub fn compile<T, P>(prog: P) -> CompiledProg
+pub fn compile<T, P>(prog: P, debug: bool) -> CompiledProg
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
     P: Deref<Target = str>,
 {
-    let (insts, mem, _) = parse(prog);
+    let (insts, mem, _, debug_info) = parse(prog);
 
     let prog = insts
         .into_iter()
@@ -90,7 +100,7 @@ where
         )
         .collect();
 
-    let compiled = CompiledProg::new(prog, Memory::new(mem));
+    let compiled = CompiledProg::new(prog, Memory::new(mem), debug.then_some(debug_info));
 
     info!("Program compiled");
 
@@ -98,14 +108,14 @@ where
 }
 
 /// Parses source code into a [`CompiledProg`] directly from a file
-pub fn from_file<T, P>(path: P) -> CompiledProg
+pub fn from_file<T, P>(path: P, debug: bool) -> CompiledProg
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
     P: AsRef<Path>,
 {
     let prog = std::fs::read_to_string(path).expect("Cannot read file");
-    compile::<T, String>(prog)
+    compile::<T, _>(prog, debug)
 }
 
 #[cfg(test)]
@@ -123,7 +133,7 @@ mod compile_tests {
         for (prog, res, out) in PROGRAMS {
             let mut t = Instant::now();
 
-            let compiled = compile::<DefaultSet, _>(prog);
+            let compiled = compile::<DefaultSet, _>(prog, false);
             let ser = serde_json::to_string(&compiled).unwrap();
 
             println!("Compilation time: {:?}", t.elapsed());

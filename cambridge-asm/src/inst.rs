@@ -52,7 +52,7 @@ impl Op {
     pub fn get_val(&self, ctx: &Context) -> Result<usize, PasmError> {
         match self {
             &Op::Literal(val) => Ok(val),
-            Op::Addr(addr) => ctx.mem.get(addr),
+            Op::Addr(addr) => ctx.mem.get(addr).copied(),
             reg if reg.is_register() => Ok(ctx.get_register(reg)),
             _ => unreachable!(),
         }

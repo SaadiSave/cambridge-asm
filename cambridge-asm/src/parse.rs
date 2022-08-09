@@ -4,7 +4,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use crate::{
-    exec::{Context, Executor, Io, MemEntry, Memory, Source},
+    exec::{Context, DebugInfo, Executor, Io, Memory, Source},
     extend,
     inst::{Inst, InstSet, Op},
     inst_set,
@@ -131,7 +131,7 @@ impl StrInst {
     }
 }
 
-pub(crate) fn parse<T, P>(prog: P) -> (Vec<Ir<T>>, BTreeMap<usize, MemEntry>, Source)
+pub(crate) fn parse<T, P>(prog: P) -> (Vec<Ir<T>>, BTreeMap<usize, usize>, Source, DebugInfo)
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
@@ -184,13 +184,15 @@ where
         PasmParser::parse(Rule::memory, &mem).unwrap(),
     );
 
+    let mut debug_info = DebugInfo::default();
+
     debug!("Instructions as detected:");
     debug!("Addr\tOpcode\tOp");
     debug!("{:-<7}\t{:-<7}\t{:-<7}", "-", "-", "-");
     let insts = get_insts(pairs.0);
 
     debug!("Processing instructions into IR...");
-    let mut insts = process_insts::<T>(insts);
+    let mut insts = process_insts::<T>(insts, &mut debug_info);
 
     debug!("Memory as detected:");
     debug!("Addr\tData");
@@ -198,9 +200,9 @@ where
     let mems = get_mems(pairs.1);
 
     debug!("Processing memory into IR...");
-    let mems = process_mems::<T>(&mems, &mut insts);
+    let mems = process_mems::<T>(mems, &mut insts, &mut debug_info);
 
-    (insts, BTreeMap::from_iter(mems), src)
+    (insts, BTreeMap::from_iter(mems), src, debug_info)
 }
 
 /// Parses a string into an [`Executor`]
@@ -212,14 +214,19 @@ where
     <T as FromStr>::Err: Display,
     P: Deref<Target = str>,
 {
-    let (insts, mem, src) = parse(prog);
+    let (insts, mem, src, debug_info) = parse(prog);
 
     let prog = insts
         .into_iter()
         .map(|Ir::<T> { addr, inst }| (addr, inst.to_exec_inst()))
         .collect();
 
-    let exe = Executor::new(src, prog, Context::with_io(Memory::new(mem), io));
+    let exe = Executor::new(
+        src,
+        prog,
+        Context::with_io(Memory::new(mem), io),
+        debug_info,
+    );
 
     info!("Executor created");
     debug!("{}\n", exe.display::<T>().unwrap_or_else(|s| panic!("{s}")));
@@ -289,10 +296,13 @@ fn get_insts(inst: Pairs<Rule>) -> Vec<StrInst> {
     out
 }
 
-fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op))> {
+fn process_inst_links(
+    insts: Vec<StrInst>,
+    debug_info: &mut DebugInfo,
+) -> Vec<(usize, (String, Op))> {
     let mut links = Vec::new();
 
-    let inst_list: Vec<_> = insts
+    let inst_list = insts
         .into_iter()
         .map(|StrInst { addr, opcode, op }| {
             (
@@ -301,35 +311,28 @@ fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op))> {
                 Op::from(op.map_or_else(|| "".into(), |s| s.trim().to_string())),
             )
         })
-        .collect();
+        .collect::<Vec<_>>();
 
+    debug_info.prog.extend(
+        inst_list
+            .iter()
+            .enumerate()
+            .filter_map(|(addr, (label, _, _))| label.as_ref().map(|label| (addr, label.clone()))),
+    );
+
+    // find links
     for (i, (addr, _, _)) in inst_list.iter().enumerate() {
         for (j, (_, _, op)) in inst_list.iter().enumerate() {
-            if addr.is_some() {
+            if let Some(addr) = addr {
                 match op {
-                    Op::Addr(x) => {
-                        if addr.as_ref().unwrap() == &x.to_string() {
-                            links.push((i, j, None));
-                        }
-                    }
-                    Op::Fail(x) => {
-                        if addr.as_ref().unwrap() == x {
-                            links.push((i, j, None));
-                        }
-                    }
+                    Op::Addr(x) if addr == &x.to_string() => links.push((i, j, None)),
+                    Op::Fail(x) if addr == x => links.push((i, j, None)),
                     Op::MultiOp(vec) => {
                         for (idx, op) in vec.iter().enumerate() {
                             match op {
-                                Op::Addr(x) => {
-                                    if addr.as_ref().unwrap() == &x.to_string() {
-                                        links.push((i, j, Some(idx)));
-                                    }
-                                }
-                                Op::Fail(x) => {
-                                    if addr.as_ref().unwrap() == x {
-                                        links.push((i, j, Some(idx)));
-                                    }
-                                }
+                                #[rustfmt::skip]
+                                Op::Addr(x) if addr == &x.to_string() => links.push((i, j, Some(idx))),
+                                Op::Fail(x) if addr == x => links.push((i, j, Some(idx))),
                                 _ => {}
                             }
                         }
@@ -346,39 +349,43 @@ fn process_inst_links(insts: Vec<StrInst>) -> Vec<(usize, (String, Op))> {
     let mut ir = inst_list
         .into_iter()
         .enumerate()
-        .map(|(i, j)| (i, (j.1, j.2)))
+        .map(|(idx, inst)| (idx, (inst.1, inst.2, inst.0)))
         .collect::<Vec<_>>();
 
-    for i in links.clone() {
-        match &ir[i.1].1 .1 {
+    // linking
+    for (to, from, multiop_idx) in links {
+        match &ir[from].1 .1 {
             Op::MultiOp(ops) => {
                 let mut ops = ops.clone();
-                ops[i.2.unwrap()] = Op::Addr(i.0);
-                ir[i.1].1 .1 = Op::MultiOp(ops);
+                // unwrap ok because mutiop_idx will always exist if operand is multiop
+                ops[multiop_idx.unwrap()] = Op::Addr(to);
+                ir[from].1 .1 = Op::MultiOp(ops);
             }
-            Op::Addr(_) | Op::Fail(_) => ir[i.1].1 .1 = Op::Addr(i.0),
+            Op::Addr(_) | Op::Fail(_) => ir[from].1 .1 = Op::Addr(to),
             _ => {}
         };
     }
 
-    ir
+    ir.into_iter()
+        .map(|(addr, (inst, op, _))| (addr, (inst, op)))
+        .collect()
 }
 
-fn process_insts<T>(insts: Vec<StrInst>) -> Vec<Ir<T>>
+fn process_insts<T>(insts: Vec<StrInst>, debug_info: &mut DebugInfo) -> Vec<Ir<T>>
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
 {
-    process_inst_links(insts)
+    process_inst_links(insts, debug_info)
         .into_iter()
-        .map(|i| {
+        .map(|(idx, (inst, op))| {
             Ir::new(
-                i.0,
+                idx,
                 Inst::new(
-                    (&(i.1).0.to_uppercase())
+                    (inst.to_uppercase())
                         .parse()
                         .unwrap_or_else(|s| panic!("{s}")),
-                    (i.1).1,
+                    op,
                 ),
             )
         })
@@ -427,14 +434,34 @@ fn get_mems(mem: Pairs<Rule>) -> Vec<Mem> {
     out
 }
 
-fn process_mems<T>(mems: &[Mem], prog: &mut [Ir<T>]) -> Vec<(usize, MemEntry)>
+fn process_mems<T>(
+    mems: Vec<Mem>,
+    prog: &mut [Ir<T>],
+    debug_info: &mut DebugInfo,
+) -> Vec<(usize, usize)>
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
 {
-    let mut links = Vec::new();
+    // unwrap ok because only numeric memory data will parse sucessfully
+    let parse_data = |opt: Option<String>| opt.map_or(0, |s| s.parse::<usize>().unwrap());
 
-    for (i, Mem { addr, .. }) in mems.iter().enumerate() {
+    let mut label_mems = vec![];
+    let mut raw_mems = vec![];
+
+    for mem in mems {
+        if let Ok(addr) = mem.addr.parse::<usize>() {
+            raw_mems.push((addr, parse_data(mem.data)));
+        } else {
+            label_mems.push((mem.addr, parse_data(mem.data)));
+        }
+    }
+
+    let mut used_addr = raw_mems.iter().map(|x| x.0).collect::<Vec<_>>();
+
+    let mut links = vec![];
+
+    for (i, (addr, _)) in label_mems.iter().enumerate() {
         for (
             j,
             Ir {
@@ -444,11 +471,6 @@ where
         ) in prog.iter().enumerate()
         {
             match op {
-                Op::Addr(x) => {
-                    if addr == &x.to_string() {
-                        links.push((i, j, None));
-                    }
-                }
                 Op::Fail(x) => {
                     if addr == x {
                         links.push((i, j, None));
@@ -456,18 +478,10 @@ where
                 }
                 Op::MultiOp(vec) => {
                     for (idx, op) in vec.iter().enumerate() {
-                        match op {
-                            Op::Addr(x) => {
-                                if addr == &x.to_string() {
-                                    links.push((i, j, Some(idx)));
-                                }
+                        if let Op::Fail(x) = op {
+                            if addr == x {
+                                links.push((i, j, Some(idx)));
                             }
-                            Op::Fail(x) => {
-                                if addr == x {
-                                    links.push((i, j, Some(idx)));
-                                }
-                            }
-                            _ => {}
                         }
                     }
                 }
@@ -479,56 +493,58 @@ where
     debug!("Detected links between program and memory:");
     debug!("{:?}\n", links);
 
-    // linking
-    for i in links.clone() {
-        match &prog[i.1].inst.op {
-            Op::MultiOp(ops) => {
-                let mut ops = ops.clone();
-                ops[i.2.unwrap()] = Op::Addr(i.0);
-                prog[i.1].inst.op = Op::MultiOp(ops);
-            }
-            Op::Addr(_) | Op::Fail(_) => prog[i.1].inst.op = Op::Addr(i.0),
-            _ => {}
+    let uids: Vec<_> = {
+        used_addr.sort_unstable();
+
+        let (first, last) = if used_addr.is_empty() {
+            (0, 0)
+        } else {
+            // unwrap ok because vector is guaranteed to not be empty
+            (
+                used_addr.first().copied().unwrap(),
+                used_addr.last().copied().unwrap(),
+            )
         };
-    }
 
-    let mut memlinks = Vec::new();
+        if (0..first).len() > links.len() {
+            (0..first).take(links.len()).collect()
+        } else {
+            (last..).take(links.len()).collect()
+        }
+    };
 
-    for (i, Mem { addr, .. }) in mems.iter().enumerate() {
-        for (j, Mem { data, .. }) in mems.iter().enumerate() {
-            if let Some(o) = data {
-                if addr == o {
-                    memlinks.push((i, j));
-                }
+    assert!(
+        uids.len() >= links.len(),
+        "One of the memory addresses is too big"
+    );
+
+    let mut newlinks = BTreeMap::new();
+
+    // linking
+    for ((memaddr, progaddr, multiop_idx), uid) in links.into_iter().zip(uids) {
+        let (addr, data) = &label_mems[memaddr];
+
+        let uid = newlinks.entry(addr).or_insert((uid, *data)).0;
+
+        debug_info.mem.entry(uid).or_insert_with(|| addr.clone());
+
+        let cir = &mut prog[progaddr];
+
+        match cir.inst.op {
+            Op::MultiOp(ref mut ops) if multiop_idx.is_some() => {
+                ops[multiop_idx.unwrap()] = Op::Addr(uid);
             }
+            Op::Fail(_) => cir.inst.op = Op::Addr(uid),
+            _ => {}
         }
     }
 
-    debug!("Detected links within memory:");
-    debug!("{:?}\n", memlinks);
-
-    let mut ir = mems
-        .iter()
-        .enumerate()
-        .map(|(i, j)| {
-            (
-                i,
-                MemEntry::new(
-                    j.data
-                        .clone()
-                        .unwrap_or_else(|| "0".to_string())
-                        .parse()
-                        .unwrap(),
-                ),
-            )
-        })
-        .collect::<Vec<_>>();
-
-    for i in memlinks {
-        ir[i.1].1.address = Some(i.0);
-    }
-
-    ir
+    newlinks
+        .values()
+        .into_iter()
+        .copied()
+        .chain(raw_mems)
+        .collect()
 }
 
 #[cfg(test)]

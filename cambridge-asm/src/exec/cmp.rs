@@ -64,24 +64,26 @@ pub fn cmp(ctx: &mut Context, op: &Op) -> PasmResult {
 pub fn cmi(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         &Addr(addr) => {
-            let addr2 = ctx.mem.get_address(&addr)?;
+            let addr2 = ctx.mem.get(&addr)?;
 
             ctx.cmp = ctx.acc
                 == ctx
                     .mem
-                    .get(&addr2)
+                    .get(addr2)
+                    .copied()
                     .map_err(|_| InvalidIndirectAddress(addr))?;
 
             Ok(())
         }
         MultiOp(ops) => match ops[..] {
             [ref dest, Addr(addr)] if dest.is_usizeable() => {
-                let addr2 = ctx.mem.get_address(&addr)?;
+                let addr2 = ctx.mem.get(&addr)?;
 
                 ctx.cmp = dest.get_val(ctx)?
                     == ctx
                         .mem
-                        .get(&addr2)
+                        .get(addr2)
+                        .copied()
                         .map_err(|_| InvalidIndirectAddress(addr))?;
 
                 Ok(())

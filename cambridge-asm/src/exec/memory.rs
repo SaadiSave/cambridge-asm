@@ -6,7 +6,7 @@
 use super::{PasmError, PasmResult};
 use std::{
     collections::btree_map::{BTreeMap, Iter},
-    fmt::{Debug, Display, Formatter, Result as FmtResult},
+    fmt::Debug,
 };
 
 #[cfg(feature = "serde")]
@@ -15,100 +15,40 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "bincode")]
 use bincode::{Decode, Encode};
 
-/// Struct representing a single block of RAM
-#[derive(Debug, Default, PartialEq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
-pub struct MemEntry {
-    pub literal: usize,
-    pub address: Option<usize>,
-}
-
-impl MemEntry {
-    pub fn new(val: usize) -> Self {
-        Self {
-            literal: val,
-            address: None,
-        }
-    }
-
-    pub fn as_address(&self) -> Option<usize> {
-        self.address
-    }
-}
-
-impl From<usize> for MemEntry {
-    fn from(x: usize) -> Self {
-        MemEntry::new(x)
-    }
-}
-
-impl Display for MemEntry {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        if let Some(a) = self.address {
-            f.write_fmt(format_args!("{{ {}, addr: {a} }}", self.literal))
-        } else {
-            f.write_fmt(format_args!("{}", self.literal))
-        }
-    }
-}
-
 /// Struct providing random-access memory (RAM)
 #[derive(Debug, Default, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 #[repr(transparent)]
-pub struct Memory(BTreeMap<usize, MemEntry>);
+pub struct Memory(BTreeMap<usize, usize>);
 
 impl Memory {
-    pub fn new(mem: BTreeMap<usize, MemEntry>) -> Self {
+    pub fn new(mem: BTreeMap<usize, usize>) -> Self {
         Self(mem)
     }
 
-    pub fn iter(&self) -> Iter<usize, MemEntry> {
+    pub fn iter(&self) -> Iter<usize, usize> {
         self.0.iter()
     }
 
-    pub fn get(&self, addr: &usize) -> Result<usize, PasmError> {
-        let x = self.0.get(addr).ok_or(PasmError::InvalidMemoryLoc(*addr))?;
-        Ok(x.literal)
+    pub fn get(&self, addr: &usize) -> PasmResult<&usize> {
+        self.0.get(addr).ok_or(PasmError::InvalidMemoryLoc(*addr))
     }
 
-    pub fn get_address(&self, addr: &usize) -> PasmResult<usize> {
+    pub fn get_mut(&mut self, addr: &usize) -> PasmResult<&mut usize> {
         self.0
-            .get(addr)
-            .ok_or(PasmError::InvalidMemoryLoc(*addr))?
-            .as_address()
-            .ok_or(PasmError::InvalidIndirectAddress(*addr))
+            .get_mut(addr)
+            .ok_or(PasmError::InvalidMemoryLoc(*addr))
     }
 
-    pub fn write(&mut self, addr: &usize, dat: usize) -> PasmResult {
-        let x = self
-            .0
-            .get_mut(addr)
-            .ok_or(PasmError::InvalidMemoryLoc(*addr))?;
-
-        if x.literal <= dat {
-            let offset = dat - x.literal;
-            x.literal = dat;
-            if let Some(a) = x.address {
-                x.address = Some(a + offset);
-            };
-        } else {
-            let offset = x.literal - dat;
-            x.literal = dat;
-            if let Some(a) = x.address {
-                x.address = Some(a - offset);
-            }
-        }
-
-        Ok(())
+    pub fn inner(&self) -> &BTreeMap<usize, usize> {
+        &self.0
     }
 }
 
 impl<T> From<T> for Memory
 where
-    T: Into<BTreeMap<usize, MemEntry>>,
+    T: Into<BTreeMap<usize, usize>>,
 {
     fn from(x: T) -> Self {
         Self(x.into())

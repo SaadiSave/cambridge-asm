@@ -39,13 +39,12 @@ pub fn ldm(ctx: &mut Context, op: &Op) -> PasmResult {
 pub fn ldd(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         Addr(addr) => {
-            ctx.acc = ctx.mem.get(addr)?;
+            ctx.acc = ctx.mem.get(addr).copied()?;
             Ok(())
         }
         MultiOp(ops) => match ops[..] {
             [ref reg, Addr(ref addr)] if reg.is_register() => {
-                let x = ctx.mem.get(addr)?;
-                *ctx.get_mut_register(reg) = x;
+                *ctx.get_mut_register(reg) = ctx.mem.get(addr).copied()?;
                 Ok(())
             }
             _ => Err(InvalidMultiOp),
@@ -64,22 +63,24 @@ pub fn ldd(ctx: &mut Context, op: &Op) -> PasmResult {
 pub fn ldi(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         &Addr(addr) => {
-            let addr2 = ctx.mem.get_address(&addr)?;
+            let addr2 = ctx.mem.get(&addr)?;
 
             ctx.acc = ctx
                 .mem
-                .get(&addr2)
+                .get(addr2)
+                .copied()
                 .map_err(|_| InvalidIndirectAddress(addr))?;
 
             Ok(())
         }
         MultiOp(ops) => match ops[..] {
             [ref reg, Addr(addr)] if reg.is_register() => {
-                let addr2 = ctx.mem.get_address(&addr)?;
+                let addr2 = ctx.mem.get(&addr)?;
 
                 *ctx.get_mut_register(reg) = ctx
                     .mem
-                    .get(&addr2)
+                    .get(addr2)
+                    .copied()
                     .map_err(|_| InvalidIndirectAddress(addr))?;
 
                 Ok(())
@@ -103,6 +104,7 @@ pub fn ldx(ctx: &mut Context, op: &Op) -> PasmResult {
             ctx.acc = ctx
                 .mem
                 .get(&(addr + ctx.ix))
+                .copied()
                 .map_err(|_| InvalidIndexedAddress(addr, ctx.ix))?;
 
             Ok(())
@@ -112,6 +114,7 @@ pub fn ldx(ctx: &mut Context, op: &Op) -> PasmResult {
                 *ctx.get_mut_register(reg) = ctx
                     .mem
                     .get(&(addr + ctx.ix))
+                    .copied()
                     .map_err(|_| InvalidIndexedAddress(addr, ctx.ix))?;
 
                 Ok(())
@@ -169,7 +172,7 @@ pub fn mov(ctx: &mut Context, op: &Op) -> PasmResult {
 pub fn sto(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         Addr(x) => {
-            ctx.mem.write(x, ctx.acc)?;
+            *ctx.mem.get_mut(x)? = ctx.acc;
 
             Ok(())
         }
