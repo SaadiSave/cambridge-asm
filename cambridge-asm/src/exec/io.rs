@@ -4,33 +4,43 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use crate::{exec::PasmError::*, inst};
-use std::io::Read;
+use std::io::{BufRead, BufReader, Read};
+
+fn failed_read<T>(err: impl std::error::Error) -> T {
+    panic!("Unable to read from input because {err}")
+}
+
+fn failed_write<T>(err: impl std::error::Error) -> T {
+    panic!("Unable to write to output because {err}")
+}
 
 inst!(
     /// No-op
+    ///
     /// Start functions with this if you don't want to compromise readability
     ///
     /// # Syntax
     /// `NOP`
-    nop {}
+    pub nop {}
 );
 
 inst!(
     /// End a program
     /// Note that this is **NOT A NO-OP**. It will have effects on execution flow in code that uses functions
-    end (ctx) {
+    pub end (ctx) {
         ctx.end = true;
     }
 );
 
 inst!(
     /// Output
+    ///
     /// Convert an ASCII code to a character and print to STDOUT
     ///
     /// # Syntax
     /// 1. `OUT` - output `ACC`
     /// 2. `OUT [lit | reg | addr]`
-    out (ctx, op) {
+    pub out (ctx, op) {
         match op {
             Null => {
                 let x = ctx.acc;
@@ -42,7 +52,7 @@ inst!(
                 #[allow(clippy::cast_possible_truncation)]
                 let out = x as u8 as char;
 
-                write!(ctx.io.write, "{out}").expect("Unable to write to io");
+                write!(ctx.io.write, "{out}").unwrap_or_else(failed_write);
             }
             src if src.is_usizeable() => {
                 let src = src.get_val(ctx)?;
@@ -54,7 +64,7 @@ inst!(
                 #[allow(clippy::cast_possible_truncation)]
                 let out = src as u8 as char;
 
-                write!(ctx.io.write, "{out}").expect("Unable to write to io");
+                write!(ctx.io.write, "{out}").unwrap_or_else(failed_write);
             }
             _ => return Err(InvalidOperand),
         }
@@ -63,33 +73,29 @@ inst!(
 
 inst!(
     /// Input
-    /// Read a single character from STDIN, convert to ASCII code and store
+    ///
+    /// Read a single character from input, convert to ASCII code and
+    /// store
     ///
     /// # Panics
-    /// If error is encountered when reading STDIN
+    /// If error is encountered when reading input
     ///
     /// # Syntax
     /// 1. `INP` - read to `ACC`
     /// 2. `INP [reg | addr]`
-    inp (ctx, op) {
+    pub inp (ctx, op) {
         match op {
             Null => {
                 let mut buf = [0; 1];
 
-                ctx.io
-                    .read
-                    .read_exact(&mut buf)
-                    .expect("Unable to read from io");
+                ctx.io.read.read_exact(&mut buf).unwrap_or_else(failed_read);
 
                 ctx.acc = buf[0] as usize;
             }
             dest if dest.is_read_write() => {
                 let mut buf = [0; 1];
 
-                ctx.io
-                    .read
-                    .read_exact(&mut buf)
-                    .expect("Unable to read from io");
+                ctx.io.read.read_exact(&mut buf).unwrap_or_else(failed_read);
 
                 ctx.modify(dest, |d| *d = buf[0] as usize)?;
             }
@@ -107,7 +113,7 @@ inst!(
     /// 2. `DBG [lit | reg | addr]` - print value
     /// 3. `DBG [lit | reg | addr], ...` - print value of all ops
     #[cfg(feature = "extended")]
-    dbg (ctx, op) {
+    pub dbg (ctx, op) {
         let out = match op {
             Null => format!("{ctx:?}"),
             src if src.is_usizeable() => format!("{}", src.get_val(ctx)?),
@@ -126,7 +132,7 @@ inst!(
             _ => return Err(InvalidOperand),
         };
 
-        writeln!(ctx.io.write, "{out}").expect("Unable to write to io");
+        writeln!(ctx.io.write, "{out}").unwrap_or_else(failed_write);
     }
 );
 
@@ -139,34 +145,12 @@ inst!(
     /// 1. `RIN` - store to `ACC`
     /// 2. `RIN [reg | addr]`
     #[cfg(feature = "extended")]
-    rin (ctx, op) {
-        const CR: u8 = 0xD;
+    pub rin (ctx, op) {
         const LF: u8 = 0xA;
 
-        fn read_line(reader: &mut impl std::io::Read, buf: &mut Vec<u8>) -> std::io::Result<()> {
-            let mut prev = 0;
-            let mut arr_buf = [0; 1];
-            loop {
-                reader.read_exact(&mut arr_buf)?;
-
-                buf.extend_from_slice(&arr_buf);
-
-                let current = arr_buf[0];
-
-                if current == LF || [prev, current] == [CR, LF] {
-                    break;
-                }
-
-                prev = arr_buf[0];
-            }
-
-            Ok(())
-        }
-
-        fn input(inp: &mut impl std::io::Read) -> usize {
-            let mut buf = Vec::new();
-
-            read_line(inp, &mut buf).expect("Unable to read stdin");
+        fn input(inp: &mut BufReader<impl Read>) -> usize {
+            let mut buf = Vec::with_capacity(32);
+            inp.read_until(LF, &mut buf).unwrap_or_else(failed_read);
 
             let str = String::from_utf8_lossy(&buf);
             let str = str.trim();
@@ -191,7 +175,7 @@ inst!(
     /// # Syntax
     /// `CALL [addr]`
     #[cfg(feature = "extended")]
-    call (ctx, op) {
+    pub call (ctx, op) {
         match op {
             &Addr(addr) => {
                 ctx.ret = ctx.mar + 1;
@@ -209,7 +193,7 @@ inst!(
     /// # Syntax
     /// `RET`
     #[cfg(feature = "extended")]
-    ret (ctx) {
+    pub ret (ctx) {
         ctx.override_flow_control();
         ctx.mar = ctx.ret;
     }

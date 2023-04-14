@@ -43,24 +43,24 @@ impl ExecInst {
 /// For further reference, look at the source of the module [`super::io`]
 #[macro_export]
 macro_rules! inst {
-    ($(#[$outer:meta])* $name:ident ($ctx:ident, $op:ident) { $( $code:tt )* }) => {
+    ($(#[$outer:meta])* $vis:vis $name:ident ($ctx:ident, $op:ident) { $( $code:tt )* }) => {
         $(#[$outer])*
-        pub fn $name($ctx: &mut $crate::exec::Context, $op: & $crate::inst::Op) -> $crate::exec::PasmResult {
+        $vis fn $name($ctx: &mut $crate::exec::Context, $op: & $crate::inst::Op) -> $crate::exec::PasmResult {
             use $crate::inst::Op::*;
             $( $code )*
             Ok(())
         }
     };
-    ($(#[$outer:meta])* $name:ident ($ctx:ident) { $( $code:tt )* }) => {
+    ($(#[$outer:meta])* $vis:vis $name:ident ($ctx:ident) { $( $code:tt )* }) => {
         $(#[$outer])*
-        pub fn $name($ctx: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::PasmResult {
+        $vis fn $name($ctx: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::PasmResult {
             $( $code )*
             Ok(())
         }
     };
-    ($(#[$outer:meta])* $name:ident { $( $code:tt )* }) => {
+    ($(#[$outer:meta])* $vis:vis $name:ident { $( $code:tt )* }) => {
         $(#[$outer])*
-        pub fn $name(_: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::PasmResult {
+        $vis fn $name(_: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::PasmResult {
             $( $code )*
             Ok(())
         }

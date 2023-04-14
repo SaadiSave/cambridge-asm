@@ -9,7 +9,7 @@ use crate::inst::{InstSet, Op};
 use std::{
     collections::BTreeMap,
     fmt::{Debug, Display, Formatter, Result as FmtResult},
-    io as stdio,
+    io::{stdin, stdout, BufReader, Read, Write},
     str::FromStr,
 };
 
@@ -60,14 +60,14 @@ pub use debug::DebugInfo;
 ///
 /// Boxed for convenience.
 pub struct Io {
-    pub read: Box<dyn stdio::Read>,
-    pub write: Box<dyn stdio::Write>,
+    pub read: BufReader<Box<dyn Read>>,
+    pub write: Box<dyn Write>,
 }
 
 /// Quickly makes an [`Io`] struct
 ///
-/// $read must implement [`stdio::Read`].
-/// $write must implement [`stdio::Write`].
+/// $read must implement [`Read`].
+/// $write must implement [`Write`].
 ///
 /// # Example
 /// ```
@@ -79,7 +79,7 @@ pub struct Io {
 macro_rules! make_io {
     ($read:expr, $write:expr) => {{
         $crate::exec::Io {
-            read: Box::new($read),
+            read: std::io::BufReader::new(Box::new($read)),
             write: Box::new($write),
         }
     }};
@@ -94,8 +94,8 @@ impl Debug for Io {
 impl Default for Io {
     fn default() -> Self {
         Self {
-            read: Box::new(stdio::stdin()),
-            write: Box::new(stdio::stdout()),
+            read: BufReader::new(Box::new(stdin())),
+            write: Box::new(stdout()),
         }
     }
 }
@@ -330,7 +330,7 @@ impl Display for Executor {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         f.write_str("Executor {")?;
         for (addr, ExecInst { op, .. }) in &self.prog {
-            writeln!(f, "{addr:>6}: {op}", op = op)?;
+            writeln!(f, "{addr:>6}: {op}")?;
         }
         f.write_str("}")
     }
