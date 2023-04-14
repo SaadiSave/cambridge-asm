@@ -65,14 +65,14 @@ impl Display for Op {
         use Op::*;
 
         let s = match self {
-            Null => "None".into(),
+            Null => String::new(),
             Acc => "ACC".into(),
             Ix => "IX".into(),
             Cmp => "CMP".into(),
             Ar => "AR".into(),
             Addr(x) => format!("{x}"),
             Literal(x) => format!("#{x}"),
-            Fail(x) => format!("`{x}` was not parsed successfully"),
+            Fail(x) => x.clone(),
             Gpr(x) => format!("r{x}"),
             MultiOp(v) => v
                 .iter()
