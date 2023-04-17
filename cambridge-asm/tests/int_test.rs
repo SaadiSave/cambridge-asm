@@ -66,8 +66,7 @@ NONE:
 "#;
         let out = TestStdout::new(vec![]);
 
-        let mut e =
-            cambridge_asm::parse::jit::<Ext, _>(PROG, make_io!(std::io::stdin(), out.clone()));
+        let mut e = cambridge_asm::parse::jit::<Ext>(PROG, make_io!(std::io::stdin(), out.clone()));
         e.exec::<Ext>();
         assert_eq!(e.ctx.acc, 65);
         assert_eq!(e.ctx.gprs[0], 20);
@@ -127,7 +126,7 @@ NONE:
         let out = TestStdout::new(vec![]);
 
         let mut e =
-            cambridge_asm::parse::jit::<Custom, _>(PROG, make_io!(std::io::stdin(), out.clone()));
+            cambridge_asm::parse::jit::<Custom>(PROG, make_io!(std::io::stdin(), out.clone()));
         e.exec::<Custom>();
 
         assert_eq!(out.to_vec(), b"HELLO");

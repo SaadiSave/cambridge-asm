@@ -1,12 +1,12 @@
 [package]
 name = "cambridge-asm"
-version = "0.16.0"
+version = "0.17.0"
 authors = ["SaadiSave <https://github.com/SaadiSave>"]
 edition = "2021"
 license = "MPL-2.0"
 description = "Run pseudoassembly from Cambridge International syllabus 9618"
 repository = "https://github.com/SaadiSave/cambridge-asm"
-rust-version = "1.59"
+rust-version = "1.63"
 
 [package.metadata.docs.rs]
 all-features = true
@@ -18,10 +18,8 @@ extended = []
 compile = ["serde", "bincode"]
 
 [dependencies]
-pest = "2.1"
-pest_derive = "2.1"
+logos = "0.12"
 log = "0.4"
-regex = "1.5"
 
 [dependencies.bincode]
 version = "2.0.0-rc.1"

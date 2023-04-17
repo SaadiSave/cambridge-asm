@@ -5,8 +5,8 @@
 
 use crate::{
     exec::{Context, DebugInfo, ExecInst, Executor, Io, Memory},
-    inst::{Inst, InstSet, Op},
-    parse::{parse, Ir},
+    inst::{InstSet, Op},
+    parse::parse,
 };
 use std::{collections::BTreeMap, fmt::Display, ops::Deref, path::Path, str::FromStr};
 
@@ -62,8 +62,7 @@ impl CompiledProg {
                 (
                     addr,
                     ExecInst::new(
-                        (&inst)
-                            .parse::<T>()
+                        inst.parse::<T>()
                             .unwrap_or_else(|s| panic!("{s}"))
                             .as_func_ptr(),
                         op,
@@ -82,22 +81,24 @@ impl CompiledProg {
 }
 
 /// Parses source code into a [`CompiledProg`] ready for serialization
-pub fn compile<T, P>(prog: P, debug: bool) -> CompiledProg
+pub fn compile<T>(prog: impl Deref<Target = str>, debug: bool) -> CompiledProg
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
-    P: Deref<Target = str>,
 {
-    let (insts, mem, _, debug_info) = parse(prog);
+    let (prog, mem, _, debug_info) = parse::<T>(prog);
 
-    let prog = insts
+    let prog = prog
         .into_iter()
-        .map(
-            |Ir::<T> {
-                 addr,
-                 inst: Inst { inst, op },
-             }| (addr, CompiledInst::new(inst.to_string(), op)),
-        )
+        .map(|(addr, ExecInst { func, op })| {
+            let str_inst = match T::from_func_ptr(func) {
+                Ok(inst) => inst,
+                Err(e) => panic!("{e}"),
+            }
+            .to_string();
+
+            (addr, CompiledInst::new(str_inst, op))
+        })
         .collect();
 
     let compiled = CompiledProg::new(prog, Memory::new(mem), debug.then_some(debug_info));
@@ -108,14 +109,13 @@ where
 }
 
 /// Parses source code into a [`CompiledProg`] directly from a file
-pub fn from_file<T, P>(path: P, debug: bool) -> CompiledProg
+pub fn from_file<T>(path: impl AsRef<Path>, debug: bool) -> CompiledProg
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
-    P: AsRef<Path>,
 {
     let prog = std::fs::read_to_string(path).expect("Cannot read file");
-    compile::<T, _>(prog, debug)
+    compile::<T>(prog, debug)
 }
 
 #[cfg(test)]
@@ -129,11 +129,11 @@ mod compile_tests {
     use std::time::Instant;
 
     #[test]
-    pub fn test() {
+    fn test() {
         for (prog, res, out) in PROGRAMS {
             let mut t = Instant::now();
 
-            let compiled = compile::<DefaultSet, _>(prog, false);
+            let compiled = compile::<DefaultSet>(prog, false);
             let ser = serde_json::to_string(&compiled).unwrap();
 
             println!("Compilation time: {:?}", t.elapsed());
