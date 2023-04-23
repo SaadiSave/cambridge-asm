@@ -25,6 +25,9 @@ jobs:
       - name: Check format
         run: cargo fmt --check
 
+      - name: Run clippy
+        run: cargo hack --feature-powerset clippy
+
       - name: Run in debug mode
         run: cargo hack test --feature-powerset && cargo hack build --feature-powerset
       
