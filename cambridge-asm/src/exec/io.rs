@@ -4,7 +4,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use crate::{exec::PasmError::*, inst};
-use std::io::{BufRead, BufReader, Read};
+use std::io::Read;
 
 fn failed_read<T>(err: impl std::error::Error) -> T {
     panic!("Unable to read from input because {err}")
@@ -146,9 +146,10 @@ inst!(
     /// 2. `RIN [reg | addr]`
     #[cfg(feature = "extended")]
     pub rin (ctx, op) {
+        use std::io::BufRead;
         const LF: u8 = 0xA;
 
-        fn input(inp: &mut BufReader<impl Read>) -> usize {
+        fn input(inp: &mut impl BufRead) -> usize {
             let mut buf = Vec::with_capacity(32);
             inp.read_until(LF, &mut buf).unwrap_or_else(failed_read);
 
