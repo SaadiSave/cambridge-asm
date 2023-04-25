@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-#![warn(clippy::pedantic)]
+#![deny(clippy::pedantic)]
 #![allow(
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
