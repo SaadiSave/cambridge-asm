@@ -4,7 +4,7 @@ RUN apt update && apt install -y gcc-10-aarch64-linux-gnu gcc-10-riscv64-linux-g
 
 RUN rustup target add aarch64-unknown-linux-gnu riscv64gc-unknown-linux-gnu x86_64-pc-windows-gnu
 
-RUN rustup component add rustfmt
+RUN rustup component add rustfmt clippy
 
 RUN cargo install cargo-hack cargo-nextest
 
