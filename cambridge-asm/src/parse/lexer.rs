@@ -1,13 +1,11 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    num::ParseIntError,
-    ops::Range,
-};
+// Copyright (c) 2021 Saadi Save
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use crate::inst::Op;
-
 use logos::{Lexer, Logos};
+use std::{collections::HashMap, fmt::Debug, num::ParseIntError, ops::Range};
 
 fn parse_num(lex: &mut Lexer<Token>) -> Option<usize> {
     let src = if lex.slice().as_bytes()[0] == b'#' {
@@ -38,13 +36,13 @@ pub enum ErrorKind {
     InvalidOperand,
 }
 
-pub type Errors = HashMap<Span, ErrorKind>;
+pub type ErrorMap = HashMap<Span, ErrorKind>;
 
 pub type ParseError = WithSpan<ErrorKind>;
 
 #[derive(Default, Debug, Clone)]
 pub struct Extras {
-    pub errors: Errors,
+    pub errors: ErrorMap,
 }
 
 impl Extras {
@@ -115,9 +113,9 @@ pub type WithSpan<T> = (Span, T);
 pub struct TokensWithSpan<'a>(pub Lexer<'a, Token>);
 
 impl<'a> TokensWithSpan<'a> {
-    pub fn lines(mut self) -> (Vec<Vec<WithSpan<Token>>>, Errors) {
-        let acc = self.by_ref().fold(Vec::new(), |mut acc, (r, t)| {
-            if matches!(t, Token::Newline) || acc.is_empty() {
+    pub fn lines(mut self) -> (Vec<Vec<WithSpan<Token>>>, ErrorMap) {
+        let acc = self.by_ref().fold(vec![Vec::new()], |mut acc, (r, t)| {
+            if matches!(t, Token::Newline) {
                 acc.push(Vec::new());
             } else {
                 acc.last_mut().unwrap().push((r, t));

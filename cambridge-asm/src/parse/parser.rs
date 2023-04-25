@@ -1,19 +1,21 @@
+// Copyright (c) 2021 Saadi Save
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+use crate::{
+    exec::{self, DebugInfo},
+    inst::{self, InstSet, Op},
+    parse::lexer::{ErrorKind, ErrorMap, ParseError, Token, TokensWithSpan, WithSpan},
+};
+use logos::Logos;
 use std::{
-    collections::{BTreeMap},
+    collections::BTreeMap,
     fmt::{Debug, Display},
     marker::PhantomData,
     ops::Range,
     str::FromStr,
 };
-
-use crate::{
-    exec::{self, DebugInfo},
-    inst::{self, InstSet, Op},
-};
-
-use super::lexer::{WithSpan, Token, Errors, TokensWithSpan, ParseError, ErrorKind};
-
-use logos::Logos;
 
 macro_rules! store_err {
     ($store:expr, $span:expr, $err:expr) => {
@@ -27,7 +29,7 @@ type Line = Vec<WithSpan<Token>>;
 pub struct Parser<'a, I> {
     pub src: &'a str,
     lines: Vec<Line>,
-    err: Errors,
+    err: ErrorMap,
     debug_info: DebugInfo,
     _inst_set: PhantomData<I>,
 }
@@ -350,7 +352,8 @@ where
             .collect()
     }
 
-    pub fn parse(mut self) -> Result<(Vec<InstIr<I>>, Vec<MemIr>, DebugInfo), Errors> {
+    #[allow(clippy::type_complexity)]
+    pub fn parse(mut self) -> Result<(Vec<InstIr<I>>, Vec<MemIr>, DebugInfo), ErrorMap> {
         let (insts, mems) = self.get_insts_and_mems();
 
         let mut inst_ir = self.process_insts(insts);

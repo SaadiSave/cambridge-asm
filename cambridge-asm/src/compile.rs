@@ -6,7 +6,7 @@
 use crate::{
     exec::{Context, DebugInfo, ExecInst, Executor, Io, Memory},
     inst::{InstSet, Op},
-    parse::parse,
+    parse::{parse, ErrorMap},
 };
 use std::{collections::BTreeMap, fmt::Display, ops::Deref, path::Path, str::FromStr};
 
@@ -81,12 +81,12 @@ impl CompiledProg {
 }
 
 /// Parses source code into a [`CompiledProg`] ready for serialization
-pub fn compile<T>(prog: impl Deref<Target = str>, debug: bool) -> CompiledProg
+pub fn compile<T>(prog: impl Deref<Target = str>, debug: bool) -> Result<CompiledProg, ErrorMap>
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
 {
-    let (prog, mem, _, debug_info) = parse::<T>(prog);
+    let (prog, mem, _, debug_info) = parse::<T>(prog)?;
 
     let prog = prog
         .into_iter()
@@ -105,11 +105,11 @@ where
 
     info!("Program compiled");
 
-    compiled
+    Ok(compiled)
 }
 
 /// Parses source code into a [`CompiledProg`] directly from a file
-pub fn from_file<T>(path: impl AsRef<Path>, debug: bool) -> CompiledProg
+pub fn from_file<T>(path: impl AsRef<Path>, debug: bool) -> Result<CompiledProg, ErrorMap>
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
@@ -133,7 +133,7 @@ mod compile_tests {
         for (prog, res, out) in PROGRAMS {
             let mut t = Instant::now();
 
-            let compiled = compile::<DefaultSet>(prog, false);
+            let compiled = compile::<DefaultSet>(prog, false).unwrap();
             let ser = serde_json::to_string(&compiled).unwrap();
 
             println!("Compilation time: {:?}", t.elapsed());

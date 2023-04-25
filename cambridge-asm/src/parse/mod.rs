@@ -9,11 +9,12 @@ use crate::{
     inst::InstSet,
     inst_set,
 };
-
 use std::{collections::BTreeMap, fmt::Display, ops::Deref, path::Path, str::FromStr};
 
 mod lexer;
 mod parser;
+
+pub use lexer::{ErrorKind, ErrorMap, Span};
 
 inst_set! {
     /// The core instruction set
@@ -79,19 +80,23 @@ mod _default_set {
 /// If enabled, it is `Extended`, otherwise `Core`.
 pub type DefaultSet = _default_set::DefaultSet;
 
+#[allow(clippy::type_complexity)]
 pub(crate) fn parse<T>(
     prog: impl Deref<Target = str>,
-) -> (
-    BTreeMap<usize, ExecInst>,
-    BTreeMap<usize, usize>,
-    Source,
-    DebugInfo,
-)
+) -> Result<
+    (
+        BTreeMap<usize, ExecInst>,
+        BTreeMap<usize, usize>,
+        Source,
+        DebugInfo,
+    ),
+    ErrorMap,
+>
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
 {
-    let (insts, mem, debug_info) = parser::Parser::<T>::new(&prog).parse().unwrap();
+    let (insts, mem, debug_info) = parser::Parser::<T>::new(&prog).parse()?;
     let src = Source::from(prog);
 
     let mem = mem
@@ -104,18 +109,18 @@ where
         .map(|parser::InstIr::<T> { addr, inst }| (addr, inst.to_exec_inst()))
         .collect();
 
-    (prog, mem, src, debug_info)
+    Ok((prog, mem, src, debug_info))
 }
 
 /// Parses a string into an [`Executor`]
 ///
 /// This is the primary method to parse a pseudoassembly program
-pub fn jit<T>(prog: impl Deref<Target = str>, io: Io) -> Executor
+pub fn jit<T>(prog: impl Deref<Target = str>, io: Io) -> Result<Executor, ErrorMap>
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
 {
-    let (prog, mem, src, debug_info) = parse::<T>(prog);
+    let (prog, mem, src, debug_info) = parse::<T>(prog)?;
 
     let exe = Executor::new(
         src,
@@ -128,11 +133,11 @@ where
     debug!("{}\n", exe.display::<T>().unwrap_or_else(|s| panic!("{s}")));
     debug!("The initial context:\n{}\n", exe.ctx);
 
-    exe
+    Ok(exe)
 }
 
 /// Parses a string into an [`Executor`] directly from a file
-pub fn jit_from_file<T>(path: impl AsRef<Path>, io: Io) -> Executor
+pub fn jit_from_file<T>(path: impl AsRef<Path>, io: Io) -> Result<Executor, ErrorMap>
 where
     T: InstSet,
     <T as FromStr>::Err: Display,
@@ -159,7 +164,7 @@ mod parse_tests {
             let mut t = Instant::now();
             let s = TestStdout::new(vec![]);
 
-            let mut exec = jit::<DefaultSet>(prog, make_io!(std::io::stdin(), s.clone()));
+            let mut exec = jit::<DefaultSet>(prog, make_io!(std::io::stdin(), s.clone())).unwrap();
 
             println!("Parse time: {:?}", t.elapsed());
 
@@ -180,7 +185,8 @@ mod parse_tests {
         let mut exec = jit::<DefaultSet>(
             include_str!("../../examples/panics.pasm"),
             make_io!(std::io::stdin(), std::io::sink()),
-        );
+        )
+        .unwrap();
         exec.exec::<DefaultSet>();
     }
 }

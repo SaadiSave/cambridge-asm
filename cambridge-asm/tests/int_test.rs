@@ -66,7 +66,8 @@ NONE:
 "#;
         let out = TestStdout::new(vec![]);
 
-        let mut e = cambridge_asm::parse::jit::<Ext>(PROG, make_io!(std::io::stdin(), out.clone()));
+        let mut e = cambridge_asm::parse::jit::<Ext>(PROG, make_io!(std::io::stdin(), out.clone()))
+            .unwrap();
         e.exec::<Ext>();
         assert_eq!(e.ctx.acc, 65);
         assert_eq!(e.ctx.gprs[0], 20);
@@ -76,48 +77,41 @@ NONE:
 
 /// Using a completely custom instruction set
 mod custom {
+    use cambridge_asm::exec::PasmError;
+
     use super::TestStdout;
     inst! {
-        h (ctx) {
-            write!(ctx.io.write, "H").unwrap();
+        from (ctx, op) {
+            match op {
+                Fail(from) => writeln!(ctx.io.write, "From {from}").unwrap(),
+                Null => writeln!(ctx.io.write, "From Pseudoassembly").unwrap(),
+                _ => return Err(PasmError::InvalidOperand)
+            }
         }
     }
 
     inst! {
-        e (ctx) {
-            write!(ctx.io.write, "E").unwrap();
-        }
-    }
-
-    inst! {
-        l (ctx) {
-            write!(ctx.io.write, "L").unwrap();
-        }
-    }
-
-    inst! {
-        o (ctx) {
-            write!(ctx.io.write, "O").unwrap();
+        greet (ctx, op) {
+            match op {
+                Fail(msg) => writeln!(ctx.io.write, "Hello, {msg}!").unwrap(),
+                Null => writeln!(ctx.io.write, "Hello!").unwrap(),
+                _ => return Err(PasmError::InvalidOperand)
+            }
         }
     }
 
     inst_set! {
         Custom {
-            H => h,
-            E => e,
-            L => l,
-            O => o,
+            GREET => greet,
+            FROM => from,
             END => cambridge_asm::exec::io::end,
         }
     }
 
     #[test]
     fn custom() {
-        const PROG: &str = r#"H
-E
-L
-L
-O
+        const PROG: &str = r#"GREET
+FROM Pseudoassembly
 END
 
 NONE:
@@ -126,9 +120,14 @@ NONE:
         let out = TestStdout::new(vec![]);
 
         let mut e =
-            cambridge_asm::parse::jit::<Custom>(PROG, make_io!(std::io::stdin(), out.clone()));
+            cambridge_asm::parse::jit::<Custom>(PROG, make_io!(std::io::stdin(), out.clone()))
+                .unwrap_or_else(|e| {
+                    e.iter()
+                        .for_each(|(r, e)| println!("{} : {e:?}", &PROG[r.clone()]));
+                    panic!()
+                });
         e.exec::<Custom>();
 
-        assert_eq!(out.to_vec(), b"HELLO");
+        assert_eq!(out.to_vec(), b"Hello!\nFrom Pseudoassembly\n");
     }
 }
