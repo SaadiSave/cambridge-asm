@@ -314,10 +314,10 @@ impl Executor {
 
         s.reserve(self.prog.len() * 15);
 
-        let _ = writeln!(s, "Executor {{");
+        writeln!(s, "Executor {{").unwrap();
 
         for (addr, ExecInst { op, func }) in &self.prog {
-            let _ = writeln!(s, "{addr:>6}: {func} {op}", func = T::from_func_ptr(*func)?);
+            writeln!(s, "{addr:>6}: {func} {op}", func = T::from_func_ptr(*func)?).unwrap();
         }
 
         s.push('}');
