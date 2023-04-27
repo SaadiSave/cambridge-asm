@@ -6,10 +6,12 @@
 use crate::{exec::PasmError::*, inst};
 use std::io::Read;
 
+#[inline]
 fn failed_read<T>(err: impl std::error::Error) -> T {
     panic!("Unable to read from input because {err}")
 }
 
+#[inline]
 fn failed_write<T>(err: impl std::error::Error) -> T {
     panic!("Unable to write to output because {err}")
 }
