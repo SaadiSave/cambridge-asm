@@ -32,7 +32,7 @@ def build_caie():
 
     for triple, arch in targets:
         system(
-            f"zip -j release/cambridge-asm-{arch}-caie target/{triple}/prod/casm{extension(triple)} cambridge-asm-cli/README.md LICENSE"
+            f"zip -j release/cambridge-asm-{arch}-caie target/{triple}/prod/casm{extension(triple)} cli/README.md LICENSE"
         )
 
 

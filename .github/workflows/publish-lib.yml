@@ -31,4 +31,4 @@ jobs:
         run: cargo login ${{ secrets.CARGO_API_TOKEN }}
 
       - name: Publish crate
-        run: cd cambridge-asm && cargo publish
+        run: cargo publish -p cambridge-asm

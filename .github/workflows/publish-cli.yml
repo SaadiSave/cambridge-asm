@@ -31,7 +31,7 @@ jobs:
         run: cargo login ${{ secrets.CARGO_API_TOKEN }}
 
       - name: Publish crate
-        run: cd cambridge-asm-cli && cargo publish
+        run: cargo publish -p cambridge-asm-cli
 
       - name: Build all targets
         run: python3 .github/buildall.py
