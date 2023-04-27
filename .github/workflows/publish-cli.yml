@@ -3,7 +3,7 @@ name: Publish CLI
 on:
   push:
     tags:
-      - 'cli-[0-9]+.[0-9]+.[0-9]+'
+      - "cli-[0-9]+.[0-9]+.[0-9]+"
 
 env:
   CARGO_TERM_COLOR: always

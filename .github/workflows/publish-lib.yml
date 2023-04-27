@@ -3,7 +3,7 @@ name: Publish lib
 on:
   push:
     tags:
-      - 'lib-[0-9]+.[0-9]+.[0-9]+'
+      - "lib-[0-9]+.[0-9]+.[0-9]+"
 
 env:
   CARGO_TERM_COLOR: always

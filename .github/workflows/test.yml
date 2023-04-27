@@ -5,12 +5,12 @@ on:
     branches:
       - main
     paths:
-      - 'cambridge-asm/**'
-      - 'cambridge-asm-cli/**'
+      - "cambridge-asm/**"
+      - "cambridge-asm-cli/**"
   pull_request:
     paths:
-      - 'cambridge-asm/**'
-      - 'cambridge-asm-cli/**'
+      - "cambridge-asm/**"
+      - "cambridge-asm-cli/**"
   workflow_call:
 
 env:
@@ -33,6 +33,6 @@ jobs:
 
       - name: Run in debug mode
         run: cargo hack test --feature-powerset && cargo hack build --feature-powerset
-      
+
       - name: Run in release mode
         run: cargo hack test --release --feature-powerset && cargo hack build --release --feature-powerset
