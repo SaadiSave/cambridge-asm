@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "cambridge-asm",
-    "cambridge-asm-cli"
+    "lib",
+    "cli"
 ]
 
 [profile.prod]

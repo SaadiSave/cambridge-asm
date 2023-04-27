@@ -5,12 +5,12 @@ on:
     branches:
       - main
     paths:
-      - "cambridge-asm/**"
-      - "cambridge-asm-cli/**"
+      - "lib/**"
+      - "cli/**"
   pull_request:
     paths:
-      - "cambridge-asm/**"
-      - "cambridge-asm-cli/**"
+      - "lib/**"
+      - "cli/**"
   workflow_call:
 
 env:
