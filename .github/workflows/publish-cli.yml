@@ -13,8 +13,34 @@ jobs:
     uses: ./.github/workflows/test.yml
 
   publish:
-    name: Publish CLI
+    name: Publish crate
     runs-on: ubuntu-latest
+    environment: Release
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions-rs/toolchain@v1
+
+      - name: Cargo login
+        run: cargo login ${{ secrets.CARGO_API_TOKEN }}
+
+      - name: Publish crate
+        run: cargo publish -p cambridge-asm-cli
+
+
+  release:
+    name: Publish CLI
+    strategy:
+      fail-fast: false
+      matrix:
+        caie: [true, false]
+        target: ['x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu', 'riscv64gc-unknown-linux-gnu', x86_64-pc-windows-gnu]
+            
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     container: ghcr.io/saadisave/cambridge-asm-ci:latest
     environment: Release
     needs: test
@@ -27,17 +53,32 @@ jobs:
       - name: Set release version
         run: export RELEASE_VERSION=$(python3 .github/getversion-cli.py) && echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
 
-      - name: Cargo login
-        run: cargo login ${{ secrets.CARGO_API_TOKEN }}
+      - name: Build
+        if: ${{ !matrix.caie}}
+        run: cargo build --profile prod --target ${{ matrix.target }} -p cambridge-asm-cli
 
-      - name: Publish crate
-        run: cargo publish -p cambridge-asm-cli
+      - name: Build caie
+        if: matrix.caie
+        run: cargo build --no-default-features --profile prod --target ${{ matrix.target }} -p cambridge-asm-cli
 
-      - name: Build all targets
-        run: python3 .github/buildall.py
+      - name: Zip
+        if: ${{ !contains(matrix.target, 'windows') }}
+        run: zip -j release/cambridge-asm-${{ matrix.target }} target/${{ matrix.target }}/prod/casm README.md LICENSE
 
-      - name: Login
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+      - name: Zip windows
+        if: contains(matrix.target, 'windows')
+        run: zip -j release/cambridge-asm-${{ matrix.target }} target/${{ matrix.target }}/prod/casm.exe README.md LICENSE
+      - name: Checksum
+        run: sha256sum release/cambridge-asm-${{ matrix.target }}.zip > release/cambridge-asm-${{ matrix.target }}.zip.sha256sum
+
+      - name: Rename caie
+        if: matrix.caie
+        run: mv release/cambridge-asm-${{ matrix.target }}.zip release/cambridge-asm-${{ matrix.target }}-caie.zip &&
+             mv release/cambridge-asm-${{ matrix.target }}.zip.sha256sum release/cambridge-asm-${{ matrix.target }}-caie.zip.sha256sum
 
       - name: Release
-        run: gh release create cli-${{ env.RELEASE_VERSION }} -t "cambridge-asm-cli-${{ env.RELEASE_VERSION }}" release/*
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: release/*
+          allowUpdates: true
+          name: cli-${{ env.RELEASE_VERSION }}
