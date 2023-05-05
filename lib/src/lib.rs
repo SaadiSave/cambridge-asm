@@ -28,7 +28,7 @@ const PROGRAMS: [(&str, usize, &[u8]); 1] =
 
 #[cfg(test)]
 #[cfg(feature = "extended")]
-const PROGRAMS: [(&str, usize, &[u8]); 4] = [
+const PROGRAMS: [(&str, usize, &[u8]); 5] = [
     (include_str!("../examples/division.pasm"), 65, b"5\nA\n"),
     (
         include_str!("../examples/multiplication.pasm"),
@@ -37,6 +37,7 @@ const PROGRAMS: [(&str, usize, &[u8]); 4] = [
     ),
     (include_str!("../examples/hello.pasm"), 207, b"HELLO\n"),
     (include_str!("../examples/functions.pasm"), 65, b"A"),
+    (include_str!("../examples/showoff.pasm"), 0, b"HELLO\n"),
 ];
 
 #[cfg(test)]
