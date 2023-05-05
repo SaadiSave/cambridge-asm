@@ -6,7 +6,7 @@
 use crate::{
     exec::{self, DebugInfo},
     inst::{self, InstSet, Op},
-    parse::lexer::{ErrorKind, ErrorMap, ParseError, Token, TokensWithSpan, WithSpan},
+    parse::lexer::{ErrorKind, ErrorMap, ParseError, Span, Token, TokensWithSpan, WithSpan},
 };
 use logos::Logos;
 use std::{
@@ -50,7 +50,12 @@ where
         }
     }
 
-    fn get_inst(line: &[WithSpan<Token>]) -> Result<Option<Inst<I>>, ParseError> {
+    fn get_inst(line: &[WithSpan<Token>]) -> Result<Option<WithSpan<Inst<I>>>, ParseError> {
+        let span = {
+            let ((s, _), (e, _)) = (line.first().unwrap(), line.last().unwrap());
+            s.start..e.end
+        };
+
         let rawline = line.iter().map(|(_, t)| t).cloned().collect::<Vec<_>>();
 
         let (addr, (opcodeidx, opcode), (restidx, rest)) = match rawline.as_slice() {
@@ -63,9 +68,7 @@ where
             [Token::Text(opcode), rest @ ..] => (None, (0, opcode), (1, rest)),
             [] => return Ok(None),
             _ => {
-                let ((s, _), (e, _)) = (line.first().unwrap(), line.last().unwrap());
-
-                return Err((s.start..e.end, ErrorKind::SyntaxError));
+                return Err((span, ErrorKind::SyntaxError));
             }
         };
 
@@ -114,7 +117,7 @@ where
             op,
         );
 
-        Ok(Some(Inst { addr, opcode, op }))
+        Ok(Some((span, Inst { addr, opcode, op })))
     }
 
     fn get_mem(line: &[WithSpan<Token>]) -> Result<Option<Mem>, ParseError> {
@@ -148,7 +151,7 @@ where
         }
     }
 
-    fn get_insts_and_mems(&mut self) -> (Vec<Inst<I>>, Vec<Mem>) {
+    fn get_insts_and_mems(&mut self) -> (Vec<Span>, Vec<Inst<I>>, Vec<Mem>) {
         let mut blocks = self
             .lines
             .split(Vec::is_empty)
@@ -172,7 +175,7 @@ where
             })
             .collect::<Vec<_>>();
 
-        let insts = blocks
+        let (inst_spans, insts): (Vec<_>, Vec<_>) = blocks
             .concat()
             .iter()
             .map(|line| Self::get_inst(line))
@@ -184,9 +187,9 @@ where
                     None
                 }
             })
-            .collect::<Vec<_>>();
+            .unzip();
 
-        (insts, mems)
+        (inst_spans, insts, mems)
     }
 
     fn process_insts(&mut self, insts: Vec<Inst<I>>) -> Vec<InstIr<I>> {
@@ -375,7 +378,9 @@ where
 
     #[allow(clippy::type_complexity)]
     pub fn parse(mut self) -> Result<(Vec<InstIr<I>>, Vec<MemIr>, DebugInfo), ErrorMap> {
-        let (insts, mems) = self.get_insts_and_mems();
+        let (inst_spans, insts, mems) = self.get_insts_and_mems();
+
+        self.debug_info.inst_spans = inst_spans;
 
         let mut inst_ir = self.process_insts(insts);
 
