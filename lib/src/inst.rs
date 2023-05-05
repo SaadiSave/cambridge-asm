@@ -5,7 +5,7 @@
 
 #![allow(clippy::module_name_repetitions)]
 
-use crate::exec::{Context, ExecFunc, ExecInst, PasmError};
+use crate::exec::{ExecFunc, ExecInst};
 use std::{fmt::Display, ops::Deref, str::FromStr};
 
 #[cfg(feature = "serde")]
@@ -24,6 +24,7 @@ pub enum Op {
     Ix,
     Cmp,
     Ar,
+    Indirect(Box<Op>),
     Addr(usize),
     Literal(usize),
     Gpr(usize),
@@ -37,25 +38,22 @@ impl Op {
     }
 
     pub fn is_register(&self) -> bool {
-        matches!(self, Op::Acc | Op::Ix | Op::Ar | Op::Gpr(_))
+        match self {
+            Op::Indirect(op) if op.is_register() => true,
+            _ => matches!(self, Op::Acc | Op::Ix | Op::Ar | Op::Gpr(_)),
+        }
     }
 
     pub fn is_read_write(&self) -> bool {
-        self.is_register() || matches!(self, Op::Addr(_))
+        self.is_register()
+            || match self {
+                Op::Indirect(op) if op.is_read_write() => true,
+                _ => matches!(self, Op::Addr(_)),
+            }
     }
 
     pub fn is_usizeable(&self) -> bool {
         self.is_read_write() || matches!(self, Op::Literal(_))
-    }
-
-    /// will panic if [`Op::is_usizeable`] is not checked first
-    pub fn get_val(&self, ctx: &Context) -> Result<usize, PasmError> {
-        match self {
-            &Op::Literal(val) => Ok(val),
-            Op::Addr(addr) => ctx.mem.get(addr).copied(),
-            reg if reg.is_register() => Ok(ctx.get_register(reg)),
-            _ => unreachable!(),
-        }
     }
 }
 
@@ -72,6 +70,7 @@ impl Display for Op {
             Ar => "AR".into(),
             Addr(x) => format!("{x}"),
             Literal(x) => format!("#{x}"),
+            Indirect(op) => format!("({op})"),
             Fail(x) => x.clone(),
             Gpr(x) => format!("r{x}"),
             MultiOp(v) => v
@@ -82,12 +81,6 @@ impl Display for Op {
         };
 
         f.write_str(&s)
-    }
-}
-
-impl From<Op> for String {
-    fn from(op: Op) -> Self {
-        op.to_string()
     }
 }
 

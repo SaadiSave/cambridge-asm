@@ -57,7 +57,7 @@ inst!(
                 write!(ctx.io.write, "{out}").unwrap_or_else(failed_write);
             }
             src if src.is_usizeable() => {
-                let src = src.get_val(ctx)?;
+                let src = ctx.read(src)?;
 
                 if src > 255 {
                     return Err(InvalidUtf8Byte(src));
@@ -118,10 +118,10 @@ inst!(
     pub dbg (ctx, op) {
         let out = match op {
             Null => format!("{ctx:?}"),
-            src if src.is_usizeable() => format!("{}", src.get_val(ctx)?),
+            src if src.is_usizeable() => format!("{}", ctx.read(src)?),
             MultiOp(ops) if ops.iter().all(crate::inst::Op::is_usizeable) => ops
                 .iter()
-                .filter_map(|op| op.get_val(ctx).ok())
+                .filter_map(|op| ctx.read(op).ok())
                 .enumerate()
                 .fold(String::new(), |acc, (idx, op)| {
                     if idx == ops.len() - 1 {

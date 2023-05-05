@@ -18,6 +18,7 @@ use bincode::{Decode, Encode};
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+#[derive(Debug)]
 struct CompiledInst {
     pub inst: String,
     pub op: Op,
@@ -34,6 +35,7 @@ type CompiledTree = BTreeMap<usize, CompiledInst>;
 /// Represents a compiled program ready to be serialized into a file
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
+#[derive(Debug)]
 pub struct CompiledProg {
     prog: CompiledTree,
     mem: Memory,

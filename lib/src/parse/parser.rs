@@ -86,6 +86,7 @@ where
                     | Token::Text(_)
                     | Token::Comma
                     | Token::Literal(_)
+                    | Token::Indirect(_)
             )
         }) {
             let span = line[restidx + idx].0.clone();
@@ -193,6 +194,7 @@ where
             match (op, addr) {
                 (Op::Addr(x), Addr::Bare(bare)) => x == bare,
                 (Op::Fail(x), Addr::Label(label)) => x == label,
+                (Op::Indirect(op), addr) => op_addr_eq(op.as_ref(), addr),
                 _ => false,
             }
         }
@@ -246,6 +248,13 @@ where
                     ir[from].1.op = Op::MultiOp(ops);
                 }
                 Op::Addr(_) | Op::Fail(_) => ir[from].1.op = Op::Addr(to),
+                Op::Indirect(_) => {
+                    if let Op::Indirect(op) = &mut ir[from].1.op {
+                        if matches!(op.as_ref(), Op::Addr(_) | Op::Fail(_)) {
+                            *op.as_mut() = Op::Addr(to);
+                        }
+                    }
+                }
                 _ => {}
             };
         }
@@ -256,6 +265,14 @@ where
     }
 
     fn process_mems(&mut self, mems: Vec<Mem>, prog: &mut [InstIr<I>]) -> Vec<MemIr> {
+        fn op_label_eq(op: &Op, label: &str) -> bool {
+            match op {
+                Op::Fail(x) => x == label,
+                Op::Indirect(op) => op_label_eq(op.as_ref(), label),
+                _ => false,
+            }
+        }
+
         let mut label_mems = Vec::new();
         let mut raw_mems = Vec::new();
 
@@ -278,21 +295,18 @@ where
             ) in prog.iter().enumerate()
             {
                 match op {
-                    Op::Fail(x) => {
-                        if addr == x {
-                            links.push((i, j, None));
-                        }
-                    }
                     Op::MultiOp(vec) => {
                         for (idx, op) in vec.iter().enumerate() {
-                            if let Op::Fail(x) = op {
-                                if addr == x {
-                                    links.push((i, j, Some(idx)));
-                                }
+                            if op_label_eq(op, addr) {
+                                links.push((i, j, Some(idx)));
                             }
                         }
                     }
-                    _ => {}
+                    _ => {
+                        if op_label_eq(op, addr) {
+                            links.push((i, j, None));
+                        }
+                    }
                 }
             }
         }
@@ -340,6 +354,13 @@ where
                     ops[multiop_idx.unwrap()] = Op::Addr(uid);
                 }
                 Op::Fail(_) => cir.inst.op = Op::Addr(uid),
+                Op::Indirect(_) => {
+                    if let Op::Indirect(op) = &mut cir.inst.op {
+                        if matches!(op.as_ref(), Op::Fail(_)) {
+                            *op.as_mut() = Op::Addr(uid);
+                        }
+                    }
+                }
                 _ => {}
             }
         }

@@ -16,18 +16,18 @@ pub fn and(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
-                let val = val.get_val(ctx)?;
+                let val = ctx.read(val)?;
                 ctx.modify(dest, |d| *d &= val)?;
             }
             [ref dest, ref a, ref b]
                 if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
             {
-                let val = a.get_val(ctx)? & b.get_val(ctx)?;
+                let val = ctx.read(a)? & ctx.read(b)?;
                 ctx.modify(dest, |d| *d = val)?;
             }
             _ => return Err(InvalidMultiOp),
         },
-        val if val.is_usizeable() => ctx.acc &= val.get_val(ctx)?,
+        val if val.is_usizeable() => ctx.acc &= ctx.read(val)?,
         Null => return Err(NoOperand),
         _ => return Err(InvalidOperand),
     }
@@ -45,18 +45,18 @@ pub fn or(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
-                let val = val.get_val(ctx)?;
+                let val = ctx.read(val)?;
                 ctx.modify(dest, |d| *d |= val)?;
             }
             [ref dest, ref a, ref b]
                 if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
             {
-                let val = a.get_val(ctx)? | b.get_val(ctx)?;
+                let val = ctx.read(a)? | ctx.read(b)?;
                 ctx.modify(dest, |d| *d = val)?;
             }
             _ => return Err(InvalidMultiOp),
         },
-        val if val.is_usizeable() => ctx.acc |= val.get_val(ctx)?,
+        val if val.is_usizeable() => ctx.acc |= ctx.read(val)?,
         Null => return Err(NoOperand),
         _ => return Err(InvalidOperand),
     }
@@ -74,18 +74,18 @@ pub fn xor(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
-                let val = val.get_val(ctx)?;
+                let val = ctx.read(val)?;
                 ctx.modify(dest, |d| *d ^= val)?;
             }
             [ref dest, ref a, ref b]
                 if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
             {
-                let val = a.get_val(ctx)? ^ b.get_val(ctx)?;
+                let val = ctx.read(a)? ^ ctx.read(b)?;
                 ctx.modify(dest, |d| *d = val)?;
             }
             _ => return Err(InvalidMultiOp),
         },
-        val if val.is_usizeable() => ctx.acc ^= val.get_val(ctx)?,
+        val if val.is_usizeable() => ctx.acc ^= ctx.read(val)?,
         Null => return Err(NoOperand),
         _ => return Err(InvalidOperand),
     }
@@ -115,21 +115,21 @@ pub fn lsl(ctx: &mut Context, op: &Op) -> PasmResult {
             let line = ctx.mar;
             match ops[..] {
                 [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
-                    let val = val.get_val(ctx)?;
+                    let val = ctx.read(val)?;
                     ctx.modify(dest, |d| checked_shl(d, val, line))
                 }
                 [ref dest, ref a, ref b]
                     if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
                 {
-                    let mut a = a.get_val(ctx)?;
-                    checked_shl(&mut a, b.get_val(ctx)?, line);
+                    let mut a = ctx.read(a)?;
+                    checked_shl(&mut a, ctx.read(b)?, line);
                     ctx.modify(dest, |d| *d = a)
                 }
                 _ => Err(InvalidMultiOp),
             }
         }
         val if val.is_usizeable() => {
-            let x = val.get_val(ctx)?;
+            let x = ctx.read(val)?;
             checked_shl(&mut ctx.acc, x, ctx.mar);
             Ok(())
         }
@@ -148,19 +148,19 @@ pub fn lsr(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
-                let val = val.get_val(ctx)?;
+                let val = ctx.read(val)?;
                 ctx.modify(dest, |d| *d >>= val)
             }
             [ref dest, ref a, ref b]
                 if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
             {
-                let val = a.get_val(ctx)? >> b.get_val(ctx)?;
+                let val = ctx.read(a)? >> ctx.read(b)?;
                 ctx.modify(dest, |d| *d = val)
             }
             _ => Err(InvalidMultiOp),
         },
         val if val.is_usizeable() => {
-            ctx.acc >>= val.get_val(ctx)?;
+            ctx.acc >>= ctx.read(val)?;
             Ok(())
         }
         Null => Err(NoOperand),

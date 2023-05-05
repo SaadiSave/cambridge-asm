@@ -44,11 +44,11 @@ pub fn cmp(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref a, ref b] if a.is_usizeable() && b.is_usizeable() => {
-                ctx.cmp = a.get_val(ctx)? == b.get_val(ctx)?;
+                ctx.cmp = ctx.read(a)? == ctx.read(b)?;
             }
             _ => return Err(InvalidMultiOp),
         },
-        val if val.is_usizeable() => ctx.cmp = ctx.acc == val.get_val(ctx)?,
+        val if val.is_usizeable() => ctx.cmp = ctx.acc == ctx.read(val)?,
         Null => return Err(NoOperand),
         _ => return Err(InvalidOperand),
     }
@@ -79,7 +79,7 @@ pub fn cmi(ctx: &mut Context, op: &Op) -> PasmResult {
             [ref dest, Addr(addr)] if dest.is_usizeable() => {
                 let addr2 = ctx.mem.get(&addr)?;
 
-                ctx.cmp = dest.get_val(ctx)?
+                ctx.cmp = ctx.read(dest)?
                     == ctx
                         .mem
                         .get(addr2)

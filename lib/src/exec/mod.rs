@@ -163,11 +163,28 @@ impl Context {
     }
 
     /// # Panics
+    /// if `op` is not usizeable. To avoid this, check `op` using [`Op::is_usizeable`]
+    #[inline]
+    pub fn read(&self, op: &Op) -> PasmResult<usize> {
+        match op {
+            &Op::Literal(val) => Ok(val),
+            Op::Addr(addr) => self.mem.get(addr).copied(),
+            Op::Indirect(op) if op.is_usizeable() => {
+                let addr = self.read(op)?;
+                self.mem.get(&addr).copied()
+            }
+            reg if reg.is_register() => Ok(self.get_register(reg)),
+            _ => unreachable!(),
+        }
+    }
+
+    /// # Panics
     /// If `op` is not writable. To avoid this, check `op` using [`Op::is_read_write`].
     #[inline]
     pub fn modify(&mut self, op: &Op, f: impl Fn(&mut usize)) -> PasmResult {
         match op {
             Op::Addr(x) => f(self.mem.get_mut(x)?),
+            Op::Indirect(op) if op.is_read_write() => self.modify(op, f)?,
             op if op.is_register() => f(self.get_mut_register(op)),
             _ => unreachable!(),
         }

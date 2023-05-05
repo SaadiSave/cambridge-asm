@@ -152,7 +152,7 @@ pub fn mov(ctx: &mut Context, op: &Op) -> PasmResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref src] if dest.is_read_write() && src.is_usizeable() => {
-                let src = src.get_val(ctx)?;
+                let src = ctx.read(src)?;
                 ctx.modify(dest, |val| *val = src)?;
             }
             _ => return Err(InvalidMultiOp),

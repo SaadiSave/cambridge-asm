@@ -28,6 +28,13 @@ fn parse_num(lex: &mut Lexer<Token>) -> Option<usize> {
     .ok()
 }
 
+fn pop_parens(lex: &mut Lexer<Token>) -> String {
+    let mut chars = lex.slice().chars();
+    chars.next();
+    chars.next_back();
+    chars.collect()
+}
+
 #[derive(Debug, Clone)]
 pub enum ErrorKind {
     ParseIntError(ParseIntError),
@@ -77,6 +84,9 @@ pub enum Token {
     #[regex("[0-9]+", parse_num)]
     BareNumber(usize),
 
+    #[regex(r"\(\w*\)", pop_parens)]
+    Indirect(String),
+
     #[regex(r"[ \t]", logos::skip)]
     Whitespace,
 
@@ -100,6 +110,7 @@ impl From<Token> for Op {
                 "ar" => Op::Ar,
                 _ => Op::Fail(txt),
             },
+            Token::Indirect(s) => Op::Indirect(Box::new(Op::from(s))),
             _ => unreachable!(),
         }
     }

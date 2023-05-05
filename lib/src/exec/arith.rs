@@ -27,21 +27,21 @@ pub fn add(ctx: &mut Context, op: &Op) -> PasmResult {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
                 let line = ctx.mar;
-                let val = val.get_val(ctx)?;
+                let val = ctx.read(val)?;
                 ctx.modify(dest, |d| checked_add(d, val, line))?;
             }
             [ref dest, ref a, ref b]
                 if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
             {
-                let mut a = a.get_val(ctx)?;
-                checked_add(&mut a, b.get_val(ctx)?, ctx.mar);
+                let mut a = ctx.read(a)?;
+                checked_add(&mut a, ctx.read(b)?, ctx.mar);
                 ctx.modify(dest, |d| *d = a)?;
             }
             _ => return Err(InvalidMultiOp),
         },
         Null => return Err(NoOperand),
         val if val.is_usizeable() => {
-            let val = val.get_val(ctx)?;
+            let val = ctx.read(val)?;
             checked_add(&mut ctx.acc, val, ctx.mar);
         }
         _ => return Err(InvalidOperand),
@@ -71,20 +71,20 @@ pub fn sub(ctx: &mut Context, op: &Op) -> PasmResult {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
                 let line = ctx.mar;
-                let val = val.get_val(ctx)?;
+                let val = ctx.read(val)?;
                 ctx.modify(dest, |d| checked_sub(d, val, line))?;
             }
             [ref dest, ref a, ref b]
                 if dest.is_read_write() && a.is_usizeable() && b.is_usizeable() =>
             {
-                let mut a = a.get_val(ctx)?;
-                checked_sub(&mut a, b.get_val(ctx)?, ctx.mar);
+                let mut a = ctx.read(a)?;
+                checked_sub(&mut a, ctx.read(b)?, ctx.mar);
                 ctx.modify(dest, |d| *d = a)?;
             }
             _ => return Err(InvalidMultiOp),
         },
         val if val.is_usizeable() => {
-            let val = val.get_val(ctx)?;
+            let val = ctx.read(val)?;
             checked_sub(&mut ctx.acc, val, ctx.mar);
         }
         Null => return Err(NoOperand),
