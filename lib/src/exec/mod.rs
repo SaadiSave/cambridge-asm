@@ -77,6 +77,9 @@ pub struct Io {
 /// ```
 #[macro_export]
 macro_rules! make_io {
+    () => {
+        $crate::exec::Io::default()
+    };
     ($read:expr, $write:expr) => {{
         $crate::exec::Io {
             read: std::io::BufReader::new(Box::new($read)),
