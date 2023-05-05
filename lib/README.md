@@ -116,7 +116,7 @@ NONE:
 "#;
     let out = TestStdout::new(vec![]);
 
-    let mut e = jit::<Ext, _>(PROG, Io::default());
+    let mut e = jit::<Ext>(PROG, Io::default()).unwrap();
     e.exec::<Ext>();
 
     // Check if r0 == 20
@@ -184,7 +184,7 @@ NONE:
 
     let out = TestStdout::new(vec![]);
 
-    let mut e = jit::<Custom, _>(PROG, Io::default());
+    let mut e = jit::<Custom>(PROG, Io::default()).unwrap();
     e.exec::<Custom>();
 }
 ```
