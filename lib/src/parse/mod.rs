@@ -57,7 +57,8 @@ extend! {
     ///
     /// [`Core`], plus debugging, raw input, function call and return, and no-op instructions
     #[cfg(feature = "extended")]
-    pub Extended extends Core use crate::exec::io; {
+    pub Extended extends Core use crate::exec::{io, arith::zero}; {
+        ZERO => zero,
         DBG => io::dbg,
         RIN => io::rin,
         CALL => io::call,

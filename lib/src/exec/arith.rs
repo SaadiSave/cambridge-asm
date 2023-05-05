@@ -127,3 +127,25 @@ pub fn dec(ctx: &mut Context, op: &Op) -> PasmResult {
 
     Ok(())
 }
+
+/// Zero a register or memory address
+///
+/// # Syntax
+/// `ZERO` - zeroes `ACC`
+/// `ZERO [reg | addr]` - zeroes the given register or memory address
+/// `ZERO [reg | addr], ...` - zeroes all operands
+#[cfg(feature = "extended")]
+pub fn zero(ctx: &mut Context, op: &Op) -> PasmResult {
+    match op {
+        MultiOp(ops) => {
+            for op in ops.iter().filter(|op| op.is_read_write()) {
+                ctx.modify(op, |val| *val = 0)?;
+            }
+        }
+        Null => ctx.acc = 0,
+        op if op.is_read_write() => ctx.modify(op, |val| *val = 0)?,
+        _ => return Err(InvalidOperand),
+    }
+
+    Ok(())
+}
