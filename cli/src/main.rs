@@ -15,7 +15,7 @@ use std::ffi::OsString;
 
 #[derive(Parser)]
 #[clap(name = "Cambridge Pseudoassembly Interpreter")]
-#[clap(version = env!("CARGO_PKG_VERSION"))]
+#[clap(version = concat!(env!("CARGO_PKG_VERSION"), "\n", "Library version 0.18.0"))]
 #[clap(author = "Saadi Save <github.com/SaadiSave>")]
 #[clap(about = "Run pseudoassembly from Cambridge International syllabus 9618 (2021)")]
 enum Commands {
@@ -60,6 +60,10 @@ enum Commands {
         /// Minify output
         #[clap(short = 'm', long = "minify")]
         minify: bool,
+
+        /// Include debuginfo
+        #[clap(short, long)]
+        debug: bool,
     },
 }
 
@@ -80,7 +84,7 @@ enum OutFormats {
     Bin,
 }
 
-fn main() -> std::io::Result<()> {
+fn main() -> anyhow::Result<()> {
     #[cfg(not(debug_assertions))]
     std::panic::set_hook(Box::new(handle_panic));
 
@@ -101,7 +105,8 @@ fn main() -> std::io::Result<()> {
             verbosity,
             format,
             minify,
-        } => compile(input, output, verbosity, format, minify)?,
+            debug,
+        } => compile(input, output, verbosity, format, minify, debug)?,
     }
 
     Ok(())
@@ -114,7 +119,7 @@ fn run(
     bench: bool,
     format: InFormats,
     io: Io,
-) -> std::io::Result<()> {
+) -> anyhow::Result<()> {
     use InFormats::*;
 
     init_logger(verbosity);
@@ -124,19 +129,15 @@ fn run(
     let mut timer = bench.then(std::time::Instant::now);
 
     let mut executor = match format {
-        Pasm => parse::jit::<DefaultSet, _>(String::from_utf8_lossy(&prog_bytes), io),
-        Json => serde_json::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))
-            .unwrap()
+        Pasm => parse::jit::<DefaultSet>(String::from_utf8_lossy(&prog_bytes), io).unwrap(),
+        Json => serde_json::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))?
             .to_executor::<DefaultSet>(io),
-        Ron => ron::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))
-            .unwrap()
+        Ron => ron::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))?
             .to_executor::<DefaultSet>(io),
-        Yaml => serde_yaml::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))
-            .unwrap()
+        Yaml => serde_yaml::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))?
             .to_executor::<DefaultSet>(io),
         Bin => {
-            bincode::decode_from_slice::<CompiledProg, _>(&prog_bytes, bincode::config::standard())
-                .unwrap()
+            bincode::decode_from_slice::<CompiledProg, _>(&prog_bytes, bincode::config::standard())?
                 .0
                 .to_executor::<DefaultSet>(io)
         }
@@ -146,13 +147,16 @@ fn run(
         println!("Total parse time: {:?}", t.elapsed());
         std::time::Instant::now()
     });
+
     if timer.is_some() || verbosity > 0 {
         println!("Execution starts on next line");
     }
 
     executor.exec::<DefaultSet>();
 
-    let _ = timer.map(|t| println!("Execution done\nExecution time: {:?}", t.elapsed()));
+    if let Some(t) = timer {
+        println!("Execution done\nExecution time: {:?}", t.elapsed());
+    }
 
     Ok(())
 }
@@ -164,6 +168,7 @@ fn compile(
     verbosity: usize,
     format: OutFormats,
     minify: bool,
+    debug: bool,
 ) -> std::io::Result<()> {
     use OutFormats::*;
 
@@ -171,7 +176,7 @@ fn compile(
 
     let prog = std::fs::read_to_string(&input)?;
 
-    let compiled = compile::compile::<DefaultSet, _>(prog);
+    let compiled = compile::compile::<DefaultSet>(prog, debug).unwrap();
 
     let output_path = output.unwrap_or_else(|| {
         input.push(match format {
