@@ -187,7 +187,10 @@ impl Context {
     pub fn modify(&mut self, op: &Op, f: impl Fn(&mut usize)) -> PasmResult {
         match op {
             Op::Addr(x) => f(self.mem.get_mut(x)?),
-            Op::Indirect(op) if op.is_read_write() => self.modify(op, f)?,
+            Op::Indirect(op) if op.is_usizeable() => {
+                let addr = self.read(op)?;
+                f(self.mem.get_mut(&addr)?);
+            }
             op if op.is_register() => f(self.get_mut_register(op)),
             _ => unreachable!(),
         }
