@@ -1,6 +1,6 @@
 [package]
 name = "cambridge-asm-cli"
-version = "0.15.0"
+version = "0.15.1"
 authors = ["SaadiSave <https://github.com/SaadiSave>"]
 edition = "2021"
 license = "MPL-2.0"
@@ -24,7 +24,7 @@ bincode = "2.0.0-rc.1"
 anyhow = "1"
 
 [dependencies.cambridge-asm]
-version = "0.18"
+version = "0.18.1"
 default-features = false
 features = ["compile"]
 
