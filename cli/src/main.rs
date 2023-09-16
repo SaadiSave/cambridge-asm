@@ -10,7 +10,7 @@ use cambridge_asm::{
     exec::Io,
     parse::{self, DefaultSet},
 };
-use clap::{ArgEnum, Parser};
+use clap::{Parser, ValueEnum};
 use std::ffi::OsString;
 
 #[derive(Parser)]
@@ -25,17 +25,17 @@ enum Commands {
         path: OsString,
 
         /// Increase logging level
-        #[clap(short = 'v', long = "verbose", parse(from_occurrences))]
-        verbosity: usize,
+        #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count)]
+        verbosity: u8,
 
         /// Show execution time
-        #[clap(short = 't', long = "bench")]
+        #[arg(short = 't', long = "bench")]
         bench: bool,
 
         /// Format of input file
-        #[clap(arg_enum)]
-        #[clap(short = 'f', long = "format")]
-        #[clap(default_value_t = InFormats::Pasm)]
+        #[arg(value_enum)]
+        #[arg(short = 'f', long = "format")]
+        #[arg(default_value_t = InFormats::Pasm)]
         format: InFormats,
     },
     /// Compile pseudoassembly
@@ -44,30 +44,30 @@ enum Commands {
         input: OsString,
 
         /// Path to output file
-        #[clap(short = 'o', long = "output")]
+        #[arg(short = 'o', long = "output")]
         output: Option<OsString>,
 
         /// Increase logging level
-        #[clap(short = 'v', long = "verbose", parse(from_occurrences))]
-        verbosity: usize,
+        #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count)]
+        verbosity: u8,
 
         /// Format of output file
-        #[clap(arg_enum)]
-        #[clap(short = 'f', long = "format")]
-        #[clap(default_value_t = OutFormats::Json)]
+        #[arg(value_enum)]
+        #[arg(short = 'f', long = "format")]
+        #[arg(default_value_t = OutFormats::Json)]
         format: OutFormats,
 
         /// Minify output
-        #[clap(short = 'm', long = "minify")]
+        #[arg(short = 'm', long = "minify")]
         minify: bool,
 
         /// Include debuginfo
-        #[clap(short, long)]
+        #[arg(short, long)]
         debug: bool,
     },
 }
 
-#[derive(ArgEnum, Clone)]
+#[derive(ValueEnum, Clone)]
 enum InFormats {
     Pasm,
     Json,
@@ -76,7 +76,7 @@ enum InFormats {
     Bin,
 }
 
-#[derive(ArgEnum, Clone)]
+#[derive(ValueEnum, Clone)]
 enum OutFormats {
     Json,
     Ron,
@@ -115,7 +115,7 @@ fn main() -> anyhow::Result<()> {
 #[allow(clippy::enum_glob_use, clippy::needless_pass_by_value)]
 fn run(
     path: OsString,
-    verbosity: usize,
+    verbosity: u8,
     bench: bool,
     format: InFormats,
     io: Io,
@@ -165,7 +165,7 @@ fn run(
 fn compile(
     mut input: OsString,
     output: Option<OsString>,
-    verbosity: usize,
+    verbosity: u8,
     format: OutFormats,
     minify: bool,
     debug: bool,
@@ -220,7 +220,7 @@ fn compile(
     std::fs::write(output_path, serialised)
 }
 
-fn init_logger(verbosity: usize) {
+fn init_logger(verbosity: u8) {
     set_log_level(verbosity);
     env_logger::builder()
         .format_timestamp(None)
@@ -229,7 +229,7 @@ fn init_logger(verbosity: usize) {
         .init();
 }
 
-fn set_log_level(v: usize) {
+fn set_log_level(v: u8) {
     use std::env;
     match v {
         0 => env::set_var("RUST_LOG", "off"),
