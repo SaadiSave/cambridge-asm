@@ -1,5 +1,5 @@
 [target.aarch64-unknown-linux-gnu]
-linker = "aarch64-linux-gnu-gcc-10"
+linker = "aarch64-linux-gnu-gcc"
 
 [target.riscv64gc-unknown-linux-gnu]
-linker = "riscv64-linux-gnu-gcc-10"
+linker = "riscv64-linux-gnu-gcc"

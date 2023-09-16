@@ -1,6 +1,6 @@
 FROM rust:1.72-bookworm
 
-RUN apt update && apt install -y gcc-10-aarch64-linux-gnu gcc-10-riscv64-linux-gnu gcc-mingw-w64-x86-64 python3 zip
+RUN apt update && apt install -y gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu gcc-mingw-w64-x86-64 python3 zip
 
 RUN rustup target add aarch64-unknown-linux-gnu riscv64gc-unknown-linux-gnu x86_64-pc-windows-gnu
 
