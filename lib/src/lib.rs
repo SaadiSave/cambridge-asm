@@ -7,7 +7,8 @@
 #![allow(
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
-    clippy::must_use_candidate
+    clippy::must_use_candidate,
+    clippy::items_after_test_module
 )]
 #![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
 
@@ -22,28 +23,39 @@ pub mod parse;
 pub mod compile;
 
 #[cfg(test)]
-#[cfg(not(feature = "extended"))]
-const PROGRAMS: [(&str, usize, &[u8]); 1] =
-    [(include_str!("../examples/hello.pasm"), 207, b"HELLO\n")];
-
-#[cfg(test)]
-#[cfg(feature = "extended")]
-const PROGRAMS: [(&str, usize, &[u8]); 5] = [
-    (include_str!("../examples/division.pasm"), 65, b"5\nA\n"),
-    (
-        include_str!("../examples/multiplication.pasm"),
-        15625,
-        b"15625\n",
-    ),
-    (include_str!("../examples/hello.pasm"), 207, b"HELLO\n"),
-    (include_str!("../examples/functions.pasm"), 65, b"A"),
-    (include_str!("../examples/showoff.pasm"), 0, b"HELLO\n"),
-];
-
-#[cfg(test)]
-pub(crate) mod test_stdout {
-    include!("../test_stdout.rs");
+pub(crate) mod test_stdio {
+    include!("../test_stdio.rs");
 }
 
 #[cfg(test)]
-pub(crate) use test_stdout::TestStdout;
+pub(crate) use test_stdio::TestStdio;
+
+#[cfg(test)]
+#[cfg(not(feature = "extended"))]
+const PROGRAMS: [(&str, usize, &[u8], &[u8]); 1] =
+    [(include_str!("../examples/hello.pasm"), 207, b"", b"HELLO\n")];
+
+#[cfg(test)]
+#[cfg(feature = "extended")]
+const PROGRAMS: [(&str, usize, &[u8], &[u8]); 5] = [
+    (
+        include_str!("../examples/division.pasm"),
+        65,
+        b"",
+        b"5\nA\n",
+    ),
+    (
+        include_str!("../examples/multiplication.pasm"),
+        15625,
+        b"",
+        b"15625\n",
+    ),
+    (include_str!("../examples/hello.pasm"), 207, b"", b"HELLO\n"),
+    (include_str!("../examples/functions.pasm"), 65, b"", b"A"),
+    (
+        include_str!("../examples/showoff.pasm"),
+        68,
+        b"DIANA",
+        b"HELLO\n",
+    ),
+];

@@ -47,6 +47,27 @@ pub type ErrorMap = HashMap<Span, ErrorKind>;
 
 pub type ParseError = WithSpan<ErrorKind>;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LinearMemory {
+    pub init: usize,
+    pub len: usize,
+}
+
+impl LinearMemory {
+    pub(self) fn from_lexer(lexer: &mut Lexer<Token>) -> Self {
+        Self::from_str(lexer.slice())
+    }
+
+    pub(self) fn from_str(s: &str) -> Self {
+        let mut decl = s.trim_matches(|c| c == '[' || c == ']').split(';');
+
+        let init = decl.next().unwrap().parse().unwrap();
+        let len = decl.next().unwrap().parse().unwrap();
+
+        Self { init, len }
+    }
+}
+
 #[derive(Default, Debug, Clone)]
 pub struct Extras {
     pub errors: ErrorMap,
@@ -92,6 +113,9 @@ pub enum Token {
 
     #[regex(r"(?:\r\n)|\n")]
     Newline,
+
+    #[regex(r"\[[0-9]+;[0-9]+\]", LinearMemory::from_lexer)]
+    LinearMemory(LinearMemory),
 
     #[error]
     Error,

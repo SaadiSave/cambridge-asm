@@ -3,6 +3,7 @@ members = [
     "lib",
     "cli"
 ]
+resolver = "2"
 
 [profile.prod]
 inherits = "release"

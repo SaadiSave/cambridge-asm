@@ -155,28 +155,39 @@ mod parse_tests {
     use crate::{
         make_io,
         parse::{jit, DefaultSet},
-        TestStdout, PROGRAMS,
+        TestStdio, PROGRAMS,
     };
     use std::time::Instant;
 
     #[test]
     fn test() {
-        for (prog, acc, out) in PROGRAMS {
+        for (prog, exp, inp, out) in PROGRAMS {
             let mut t = Instant::now();
-            let s = TestStdout::new(vec![]);
+            let s = TestStdio::new(vec![]);
 
-            let mut exec = jit::<DefaultSet>(prog, make_io!(std::io::stdin(), s.clone())).unwrap();
+            let mut exe =
+                jit::<DefaultSet>(prog, make_io!(TestStdio::new(inp), s.clone())).unwrap();
 
             println!("Parse time: {:?}", t.elapsed());
 
             t = Instant::now();
 
-            exec.exec::<DefaultSet>();
+            exe.exec::<DefaultSet>();
 
             println!("Execution time: {:?}", t.elapsed());
 
-            assert_eq!(exec.ctx.acc, acc);
-            assert_eq!(s.to_vec(), out);
+            assert_eq!(
+                exe.ctx.acc, exp,
+                "Expected '{}' in ACC, got '{}'",
+                exp, exe.ctx.acc
+            );
+            assert_eq!(
+                s.to_vec(),
+                out,
+                "Expected '{}' in output, got '{}'",
+                String::from_utf8_lossy(out),
+                s.try_to_string().unwrap()
+            );
         }
     }
 

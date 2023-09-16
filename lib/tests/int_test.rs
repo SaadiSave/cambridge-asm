@@ -1,11 +1,11 @@
 #[macro_use]
 extern crate cambridge_asm;
 
-include!("../test_stdout.rs");
+include!("../test_stdio.rs");
 
 /// Extending the `Core` instruction set
 mod extension {
-    use super::TestStdout;
+    use super::TestStdio;
     use cambridge_asm::parse::Core;
 
     inst! {
@@ -38,7 +38,7 @@ END
 
 NONE:
 "#;
-        let out = TestStdout::new(vec![]);
+        let out = TestStdio::new(vec![]);
 
         let mut e = cambridge_asm::parse::jit::<Ext>(PROG, make_io!(std::io::stdin(), out.clone()))
             .unwrap();
@@ -53,7 +53,7 @@ NONE:
 mod custom {
     use cambridge_asm::exec::PasmError;
 
-    use super::TestStdout;
+    use super::TestStdio;
     inst! {
         from (ctx, op) {
             match op {
@@ -91,7 +91,7 @@ END
 NONE:
 "#;
 
-        let out = TestStdout::new(vec![]);
+        let out = TestStdio::new(vec![]);
 
         let mut e =
             cambridge_asm::parse::jit::<Custom>(PROG, make_io!(std::io::stdin(), out.clone()))

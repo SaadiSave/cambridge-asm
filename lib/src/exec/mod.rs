@@ -373,7 +373,7 @@ impl Debug for Executor {
             )
             .field("ctx", &self.ctx)
             .field("count", &self.count)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

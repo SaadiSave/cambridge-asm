@@ -126,13 +126,13 @@ mod compile_tests {
         compile::{compile, CompiledProg},
         make_io,
         parse::DefaultSet,
-        TestStdout, PROGRAMS,
+        TestStdio, PROGRAMS,
     };
     use std::time::Instant;
 
     #[test]
     fn test() {
-        for (prog, res, out) in PROGRAMS {
+        for (prog, exp, inp, out) in PROGRAMS {
             let mut t = Instant::now();
 
             let compiled = compile::<DefaultSet>(prog, false).unwrap();
@@ -141,11 +141,11 @@ mod compile_tests {
             println!("Compilation time: {:?}", t.elapsed());
 
             t = Instant::now();
-            let s = TestStdout::new(vec![]);
+            let s = TestStdio::new(vec![]);
 
             let mut exe = serde_json::from_str::<CompiledProg>(&ser)
                 .unwrap()
-                .to_executor::<DefaultSet>(make_io!(std::io::stdin(), s.clone()));
+                .to_executor::<DefaultSet>(make_io!(TestStdio::new(inp), s.clone()));
 
             println!("JIT time: {:?}", t.elapsed());
 
@@ -155,8 +155,18 @@ mod compile_tests {
 
             println!("Execution time: {:?}", t.elapsed());
 
-            assert_eq!(exe.ctx.acc, res);
-            assert_eq!(s.to_vec(), out);
+            assert_eq!(
+                exe.ctx.acc, exp,
+                "Expected '{}' in ACC, got '{}'",
+                exp, exe.ctx.acc
+            );
+            assert_eq!(
+                s.to_vec(),
+                out,
+                "Expected '{}' in output, got '{}'",
+                String::from_utf8_lossy(out),
+                s.try_to_string().unwrap()
+            );
         }
     }
 }

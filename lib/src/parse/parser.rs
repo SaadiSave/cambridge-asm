@@ -6,7 +6,9 @@
 use crate::{
     exec::{self, DebugInfo},
     inst::{self, InstSet, Op},
-    parse::lexer::{ErrorKind, ErrorMap, ParseError, Span, Token, TokensWithSpan, WithSpan},
+    parse::lexer::{
+        ErrorKind, ErrorMap, LinearMemory, ParseError, Span, Token, TokensWithSpan, WithSpan,
+    },
 };
 use logos::Logos;
 use std::{
@@ -120,7 +122,12 @@ where
         Ok(Some((span, Inst { addr, opcode, op })))
     }
 
-    fn get_mem(line: &[WithSpan<Token>]) -> Result<Option<Mem>, ParseError> {
+    fn get_mem(line: &[WithSpan<Token>]) -> Result<Option<MemEnum>, ParseError> {
+        enum DataEnum {
+            LinearMemory(LinearMemory),
+            Normal(usize),
+        }
+
         let rawline = line.iter().map(|(_, t)| t).cloned().collect::<Vec<_>>();
 
         let (&Range { start, .. }, &Range { end, .. }) = if rawline.is_empty() {
@@ -129,23 +136,40 @@ where
             (&line.first().unwrap().0, &line.last().unwrap().0)
         };
 
-        let get_data = |t: &[Token], start_idx: usize| -> Result<usize, ParseError> {
+        let get_data = |t: &[Token], start_idx: usize| -> Result<DataEnum, ParseError> {
             match t {
-                &[Token::BareNumber(n)] => Ok(n),
-                [] => Ok(0),
+                &[Token::BareNumber(n)] => Ok(DataEnum::Normal(n)),
+                &[Token::LinearMemory(mem)] => Ok(DataEnum::LinearMemory(mem)),
+                [] => Ok(DataEnum::Normal(0)),
                 _ => Err((line[start_idx].0.start..end, ErrorKind::SyntaxError)),
             }
         };
 
         match rawline.as_slice() {
-            &[Token::BareNumber(addr), ref rest @ ..] => Ok(Some(Mem {
-                addr: Addr::Bare(addr),
-                data: get_data(rest, 1)?,
-            })),
-            [Token::Text(label), Token::Colon, rest @ ..] => Ok(Some(Mem {
+            &[Token::BareNumber(addr), ref rest @ ..] => {
+                let res = match get_data(rest, 1)? {
+                    DataEnum::LinearMemory(mem) => Some(MemEnum::Linear(
+                        (addr..addr + mem.len)
+                            .map(Addr::Bare)
+                            .map(move |addr| (addr, mem.init))
+                            .map(Mem::from)
+                            .collect(),
+                    )),
+                    DataEnum::Normal(data) => Some(MemEnum::One(Mem {
+                        addr: Addr::Bare(addr),
+                        data,
+                    })),
+                };
+
+                Ok(res)
+            }
+            [Token::Text(label), Token::Colon, rest @ ..] => Ok(Some(MemEnum::One(Mem {
                 addr: Addr::Label(label.clone()),
-                data: get_data(rest, 2)?,
-            })),
+                data: match get_data(rest, 2)? {
+                    DataEnum::LinearMemory(_) => Err((start..end, ErrorKind::SyntaxError))?,
+                    DataEnum::Normal(data) => data,
+                },
+            }))),
             [] => Ok(None),
             _ => Err((start..end, ErrorKind::SyntaxError)),
         }
@@ -173,7 +197,14 @@ where
                     None
                 }
             })
-            .collect::<Vec<_>>();
+            .fold(Vec::new(), |mut acc, mem| {
+                match mem {
+                    MemEnum::Linear(mems) => acc.extend(mems),
+                    MemEnum::One(mem) => acc.push(mem),
+                };
+
+                acc
+            });
 
         let (inst_spans, insts): (Vec<_>, Vec<_>) = blocks
             .concat()
@@ -487,9 +518,20 @@ where
     }
 }
 
+enum MemEnum {
+    Linear(Vec<Mem>),
+    One(Mem),
+}
+
 pub struct Mem {
     pub addr: Addr,
     pub data: usize,
+}
+
+impl From<(Addr, usize)> for Mem {
+    fn from((addr, data): (Addr, usize)) -> Self {
+        Self { addr, data }
+    }
 }
 
 pub struct MemIr {
