@@ -15,7 +15,7 @@ use std::ffi::OsString;
 
 #[derive(Parser)]
 #[clap(name = "Cambridge Pseudoassembly Interpreter")]
-#[clap(version = concat!(env!("CARGO_PKG_VERSION"), "\n", "Library version 0.18.0"))]
+#[clap(version = concat!("v", env!("CARGO_PKG_VERSION"), "\nCambridge Pseudoassembly v", include_str!("../LIBRARY_VERSION")))]
 #[clap(author = "Saadi Save <github.com/SaadiSave>")]
 #[clap(about = "Run pseudoassembly from Cambridge International syllabus 9618 (2021)")]
 enum Commands {

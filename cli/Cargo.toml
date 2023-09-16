@@ -31,3 +31,6 @@ features = ["compile"]
 [dependencies.clap]
 version = "3"
 features = ["derive"]
+
+[build-dependencies]
+cargo_toml = "0.15.2"
