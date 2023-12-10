@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use super::{Context, PasmError::*, PasmResult};
+use super::{Context, RtError::*, RtResult};
 use crate::inst::Op::{self, *};
 
 /// Bitwise AND
@@ -12,7 +12,7 @@ use crate::inst::Op::{self, *};
 /// 1. `AND [lit | reg | addr]` - AND with `ACC`
 /// 2. `AND [reg | addr],[lit | reg | addr]` - store second AND first to first
 /// 3. `AND [reg | addr],[lit | reg | addr],[lit | reg | addr]` - store second AND third to first
-pub fn and(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn and(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
@@ -41,7 +41,7 @@ pub fn and(ctx: &mut Context, op: &Op) -> PasmResult {
 /// 1. `OR [lit | reg | addr]` - OR with `ACC`
 /// 2. `OR [reg | addr],[lit | reg | addr]` - store second OR first to first
 /// 3. `OR [reg | addr],[lit | reg | addr],[lit | reg | addr]` - store second OR third to first
-pub fn or(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn or(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
@@ -70,7 +70,7 @@ pub fn or(ctx: &mut Context, op: &Op) -> PasmResult {
 /// 1. `XOR [lit | reg | addr]` - XOR with `ACC`
 /// 2. `XOR [reg | addr],[lit | reg | addr]` - store second XOR first to first
 /// 3. `XOR [reg | addr],[lit | reg | addr],[lit | reg | addr]` - store second XOR third to first
-pub fn xor(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn xor(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
@@ -99,7 +99,7 @@ pub fn xor(ctx: &mut Context, op: &Op) -> PasmResult {
 /// 1. `LSL [lit | reg | addr]` - LSL with `ACC`
 /// 2. `LSL [reg | addr],[lit | reg | addr]` - store second LSL first to first
 /// 3. `LSL [reg | addr],[lit | reg | addr],[lit | reg | addr]` - store second LSL third to first
-pub fn lsl(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn lsl(ctx: &mut Context, op: &Op) -> RtResult {
     #[allow(clippy::cast_possible_truncation)]
     fn checked_shl(dest: &mut usize, val: usize, mar: usize) {
         if let Some(res) = dest.checked_shl(val as u32) {
@@ -144,7 +144,7 @@ pub fn lsl(ctx: &mut Context, op: &Op) -> PasmResult {
 /// 1. `LSR [lit | reg | addr]` - LSR with `ACC`
 /// 2. `LSR [reg | addr],[lit | reg | addr]` - store second LSR first to first
 /// 3. `LSR [reg | addr],[lit | reg | addr],[lit | reg | addr]` - store second LSR third to first
-pub fn lsr(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn lsr(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {

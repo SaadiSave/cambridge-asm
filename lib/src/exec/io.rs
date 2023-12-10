@@ -3,18 +3,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use crate::{exec::PasmError::*, inst};
+use crate::{exec::RtError::*, inst};
 use std::io::Read;
-
-#[inline]
-fn failed_read<T>(err: impl std::error::Error) -> T {
-    panic!("Unable to read from input because {err}")
-}
-
-#[inline]
-fn failed_write<T>(err: impl std::error::Error) -> T {
-    panic!("Unable to write to output because {err}")
-}
 
 inst!(
     /// No-op
@@ -54,7 +44,7 @@ inst!(
                 #[allow(clippy::cast_possible_truncation)]
                 let out = x as u8 as char;
 
-                write!(ctx.io.write, "{out}").unwrap_or_else(failed_write);
+                write!(ctx.io.write, "{out}")?;
             }
             src if src.is_usizeable() => {
                 let src = ctx.read(src)?;
@@ -66,7 +56,7 @@ inst!(
                 #[allow(clippy::cast_possible_truncation)]
                 let out = src as u8 as char;
 
-                write!(ctx.io.write, "{out}").unwrap_or_else(failed_write);
+                write!(ctx.io.write, "{out}")?;
             }
             _ => return Err(InvalidOperand),
         }
@@ -90,14 +80,14 @@ inst!(
             Null => {
                 let mut buf = [0; 1];
 
-                ctx.io.read.read_exact(&mut buf).unwrap_or_else(failed_read);
+                ctx.io.read.read_exact(&mut buf)?;
 
                 ctx.acc = buf[0] as usize;
             }
             dest if dest.is_read_write() => {
                 let mut buf = [0; 1];
 
-                ctx.io.read.read_exact(&mut buf).unwrap_or_else(failed_read);
+                ctx.io.read.read_exact(&mut buf)?;
 
                 ctx.modify(dest, |d| *d = buf[0] as usize)?;
             }
@@ -119,7 +109,7 @@ inst!(
         let out = match op {
             Null => format!("{ctx:?}"),
             src if src.is_usizeable() => format!("{}", ctx.read(src)?),
-            MultiOp(ops) if ops.iter().all(crate::inst::Op::is_usizeable) => ops
+            MultiOp(ops) if ops.iter().all(inst::Op::is_usizeable) => ops
                 .iter()
                 .filter_map(|op| ctx.read(op).ok())
                 .enumerate()
@@ -134,7 +124,7 @@ inst!(
             _ => return Err(InvalidOperand),
         };
 
-        writeln!(ctx.io.write, "{out}").unwrap_or_else(failed_write);
+        writeln!(ctx.io.write, "{out}")?;
     }
 );
 
@@ -149,22 +139,25 @@ inst!(
     #[cfg(feature = "extended")]
     pub rin (ctx, op) {
         use std::io::BufRead;
+        use super::RtResult;
         const LF: u8 = 0xA;
 
-        fn input(inp: &mut impl BufRead) -> usize {
+        fn input(inp: &mut impl BufRead) -> RtResult<usize> {
             let mut buf = Vec::with_capacity(32);
-            inp.read_until(LF, &mut buf).unwrap_or_else(failed_read);
+            inp.read_until(LF, &mut buf)?;
 
             let str = String::from_utf8_lossy(&buf);
             let str = str.trim();
-            str.parse()
-                .unwrap_or_else(|e| panic!("Unable to parse {str:?} because {e}"))
+            let res = str.parse()
+                .map_err(|e| format!("Unable to parse {str:?} because {e}"))?;
+
+            Ok(res)
         }
 
         match op {
-            Null => ctx.acc = input(&mut ctx.io.read),
+            Null => ctx.acc = input(&mut ctx.io.read)?,
             dest if dest.is_read_write() => {
-                let input = input(&mut ctx.io.read);
+                let input = input(&mut ctx.io.read)?;
                 ctx.modify(dest, |d| *d = input)?;
             }
             _ => return Err(InvalidOperand),

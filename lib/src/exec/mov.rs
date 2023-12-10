@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use super::{Context, PasmError::*, PasmResult};
+use super::{Context, RtError::*, RtResult};
 use crate::inst::Op::{self, *};
 
 /// Load immediate values into a register
@@ -12,7 +12,7 @@ use crate::inst::Op::{self, *};
 ///
 /// 1. `LDM [lit]` - loads to `ACC`
 /// 2. `LDM [reg],[lit]` - loads to `reg`
-pub fn ldm(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn ldm(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref op, Literal(val)] if op.is_register() => {
@@ -36,7 +36,7 @@ pub fn ldm(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// 1. `LDD [addr]` - loads to `ACC`
 /// 2. `LDD [reg],[addr]` - loads to `reg`
-pub fn ldd(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn ldd(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         Addr(addr) => {
             ctx.acc = ctx.mem.get(addr).copied()?;
@@ -60,7 +60,7 @@ pub fn ldd(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// 1. `LDM [addr]` - loads to `ACC`
 /// 2. `LDM [reg],[addr]` - loads to `reg`
-pub fn ldi(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn ldi(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         &Addr(addr) => {
             let addr2 = ctx.mem.get(&addr)?;
@@ -69,7 +69,10 @@ pub fn ldi(ctx: &mut Context, op: &Op) -> PasmResult {
                 .mem
                 .get(addr2)
                 .copied()
-                .map_err(|_| InvalidIndirectAddress(addr))?;
+                .map_err(|_| InvalidIndirectAddr {
+                    src: addr,
+                    redirect: *addr2,
+                })?;
 
             Ok(())
         }
@@ -77,11 +80,14 @@ pub fn ldi(ctx: &mut Context, op: &Op) -> PasmResult {
             [ref reg, Addr(addr)] if reg.is_register() => {
                 let addr2 = ctx.mem.get(&addr)?;
 
-                *ctx.get_mut_register(reg) = ctx
-                    .mem
-                    .get(addr2)
-                    .copied()
-                    .map_err(|_| InvalidIndirectAddress(addr))?;
+                *ctx.get_mut_register(reg) =
+                    ctx.mem
+                        .get(addr2)
+                        .copied()
+                        .map_err(|_| InvalidIndirectAddr {
+                            src: addr,
+                            redirect: *addr2,
+                        })?;
 
                 Ok(())
             }
@@ -98,24 +104,30 @@ pub fn ldi(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// 1. `LDM [addr]` - loads to `ACC`
 /// 2. `LDM [reg],[addr]` - loads to `reg`
-pub fn ldx(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn ldx(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         &Addr(addr) => {
             ctx.acc = ctx
                 .mem
                 .get(&(addr + ctx.ix))
                 .copied()
-                .map_err(|_| InvalidIndexedAddress(addr, ctx.ix))?;
+                .map_err(|_| InvalidIndexedAddr {
+                    src: addr,
+                    offset: ctx.ix,
+                })?;
 
             Ok(())
         }
         MultiOp(ops) => match ops[..] {
             [ref reg, Addr(addr)] if reg.is_register() => {
-                *ctx.get_mut_register(reg) = ctx
-                    .mem
-                    .get(&(addr + ctx.ix))
-                    .copied()
-                    .map_err(|_| InvalidIndexedAddress(addr, ctx.ix))?;
+                *ctx.get_mut_register(reg) =
+                    ctx.mem
+                        .get(&(addr + ctx.ix))
+                        .copied()
+                        .map_err(|_| InvalidIndexedAddr {
+                            src: addr,
+                            offset: ctx.ix,
+                        })?;
 
                 Ok(())
             }
@@ -130,7 +142,7 @@ pub fn ldx(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// # Syntax
 /// `LDR [lit]`
-pub fn ldr(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn ldr(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         &Literal(val) => ctx.ix = val,
         Null => return Err(NoOperand),
@@ -148,7 +160,7 @@ pub fn ldr(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// 1. `MOV [reg]` - move `ACC` value to `reg`
 /// 2. `MOV [reg | addr],[reg | addr]` - move second value to first
-pub fn mov(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn mov(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref src] if dest.is_read_write() && src.is_usizeable() => {
@@ -169,7 +181,7 @@ pub fn mov(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// # Syntax
 /// `STO [addr]`
-pub fn sto(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn sto(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         Addr(x) => {
             *ctx.mem.get_mut(x)? = ctx.acc;

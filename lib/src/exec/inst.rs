@@ -4,12 +4,12 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use crate::{
-    exec::{Context, PasmResult},
+    exec::{Context, RtResult},
     inst::Op,
 };
 
 /// Function pointer of an instruction called with [`Context`] and [`Op`] at runtime
-pub type ExecFunc = fn(&mut Context, &Op) -> PasmResult;
+pub type ExecFunc = fn(&mut Context, &Op) -> RtResult;
 
 /// Runtime representation of an instruction
 #[derive(Clone)]
@@ -45,7 +45,7 @@ impl ExecInst {
 macro_rules! inst {
     ($(#[$outer:meta])* $vis:vis $name:ident ($ctx:ident, $op:ident) { $( $code:tt )* }) => {
         $(#[$outer])*
-        $vis fn $name($ctx: &mut $crate::exec::Context, $op: & $crate::inst::Op) -> $crate::exec::PasmResult {
+        $vis fn $name($ctx: &mut $crate::exec::Context, $op: & $crate::inst::Op) -> $crate::exec::RtResult {
             use $crate::inst::Op::*;
             $( $code )*
             Ok(())
@@ -53,14 +53,14 @@ macro_rules! inst {
     };
     ($(#[$outer:meta])* $vis:vis $name:ident ($ctx:ident) { $( $code:tt )* }) => {
         $(#[$outer])*
-        $vis fn $name($ctx: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::PasmResult {
+        $vis fn $name($ctx: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::RtResult {
             $( $code )*
             Ok(())
         }
     };
     ($(#[$outer:meta])* $vis:vis $name:ident { $( $code:tt )* }) => {
         $(#[$outer])*
-        $vis fn $name(_: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::PasmResult {
+        $vis fn $name(_: &mut $crate::exec::Context, _: & $crate::inst::Op) -> $crate::exec::RtResult {
             $( $code )*
             Ok(())
         }

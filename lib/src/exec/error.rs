@@ -6,55 +6,49 @@
 #![allow(clippy::module_name_repetitions)]
 
 use std::{
-    error::Error,
     fmt::{Debug, Display, Formatter, Result as FmtResult},
     ops::Deref,
 };
+use thiserror::Error;
 
 /// Represents all possible runtime errors
-#[derive(Debug)]
-pub enum PasmError {
-    Str(String),
+#[derive(Debug, Error)]
+pub enum RtError {
+    #[error("{0}")]
+    Other(String),
+    #[error("Unexpected I/O error, caused by: {0}")]
+    IoError(#[from] std::io::Error),
+    #[error("#x{0:X} is not a valid UTF-8 byte.")]
     InvalidUtf8Byte(usize),
+    #[error("Operand is not a memory address, register, or literal")]
     InvalidOperand,
+    #[error("No operand needed")]
     NoOpInst,
+    #[error("Operand missing")]
     NoOperand,
-    InvalidMemoryLoc(usize),
-    InvalidIndirectAddress(usize),
-    InvalidIndexedAddress(usize, usize),
+    #[error("Invalid memory address `{0}`")]
+    InvalidAddr(usize),
+    #[error("Invalid indirect access address {redirect} at memory address {src}")]
+    InvalidIndirectAddr { src: usize, redirect: usize },
+    #[error("Invalid indexed access address `{}` from {src} + {offset}", .src +.offset)]
+    InvalidIndexedAddr { src: usize, offset: usize },
+    #[error("Invalid operand sequence")]
     InvalidMultiOp,
 }
 
-impl Display for PasmError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        use PasmError::*;
-
-        match self {
-            Str(s) => f.write_str(s),
-            InvalidUtf8Byte(b) => write!(f, "#x{b:X} is not a valid UTF-8 byte."),
-            InvalidOperand => f.write_str("Operand is not a memory address, register, or literal. If you wanted to use a label, please double-check the label."),
-            NoOperand => f.write_str("Operand missing."),
-            NoOpInst => f.write_str("Instruction takes no operand."),
-            InvalidMemoryLoc(addr) => write!(f, "Memory address {addr} does not exist."),
-            InvalidIndirectAddress(addr) => write!(f, "The value at memory address {addr} does not point to a valid memory address"),
-            InvalidIndexedAddress(addr, offset) => write!(f, "The memory address {addr} offset by IX value {offset} is not a valid memory address ({addr} + {offset} = {})", addr + offset),
-            InvalidMultiOp => f.write_str("Operand sequence is invalid"),
-        }
+impl From<&'static str> for RtError {
+    fn from(value: &'static str) -> Self {
+        Self::Other(value.to_string())
     }
 }
 
-impl Error for PasmError {}
-
-impl<T: Deref<Target = str>> From<T> for PasmError {
-    fn from(s: T) -> Self {
-        PasmError::Str(s.to_string())
+impl From<String> for RtError {
+    fn from(value: String) -> Self {
+        Self::Other(value)
     }
 }
 
-/// Convenience type to work with [`PasmError`]
-///
-/// Comparable to [`std::io::Result`]
-pub type PasmResult<T = ()> = Result<T, PasmError>;
+pub type RtResult<T = ()> = Result<T, RtError>;
 
 /// Stores original source code during execution
 #[derive(Debug, Default, Clone)]
@@ -65,7 +59,7 @@ impl Source {
     pub fn handle_err(
         &self,
         write: &mut impl std::io::Write,
-        err: &PasmError,
+        err: &RtError,
         pos: usize,
     ) -> std::io::Result<()> {
         writeln!(write, "Runtime Error:")?;

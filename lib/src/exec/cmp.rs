@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use super::{Context, PasmError::*, PasmResult};
+use super::{Context, RtError::*, RtResult};
 use crate::inst::Op::{self, *};
 
 /// Jump
@@ -11,7 +11,7 @@ use crate::inst::Op::{self, *};
 /// # Syntax
 /// 1. `JMP [ref]` - jump to addr
 /// 2. `JMP [ref],[ref]` - jump to first if CMP true, second if CMP false
-pub fn jmp(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn jmp(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         &Addr(x) => {
             ctx.override_flow_control();
@@ -40,7 +40,7 @@ pub fn jmp(ctx: &mut Context, op: &Op) -> PasmResult {
 /// # Syntax
 /// 1. `CMP [lit | reg | addr]` - compare to ACC
 /// 2. `CMP [lit | reg | addr],[lit | reg | addr]` - compare both values
-pub fn cmp(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn cmp(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref a, ref b] if a.is_usizeable() && b.is_usizeable() => {
@@ -61,7 +61,7 @@ pub fn cmp(ctx: &mut Context, op: &Op) -> PasmResult {
 /// # Syntax
 /// 1. `CMI [addr]`
 /// 2. `CMI [lit | reg | addr],[addr]`
-pub fn cmi(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn cmi(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         &Addr(addr) => {
             let addr2 = ctx.mem.get(&addr)?;
@@ -71,7 +71,10 @@ pub fn cmi(ctx: &mut Context, op: &Op) -> PasmResult {
                     .mem
                     .get(addr2)
                     .copied()
-                    .map_err(|_| InvalidIndirectAddress(addr))?;
+                    .map_err(|_| InvalidIndirectAddr {
+                        src: addr,
+                        redirect: *addr2,
+                    })?;
 
             Ok(())
         }
@@ -84,7 +87,10 @@ pub fn cmi(ctx: &mut Context, op: &Op) -> PasmResult {
                         .mem
                         .get(addr2)
                         .copied()
-                        .map_err(|_| InvalidIndirectAddress(addr))?;
+                        .map_err(|_| InvalidIndirectAddr {
+                            src: addr,
+                            redirect: *addr2,
+                        })?;
 
                 Ok(())
             }
@@ -99,7 +105,7 @@ pub fn cmi(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// # Syntax
 /// `JPE [addr]`
-pub fn jpe(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn jpe(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         &Addr(addr) => {
             if ctx.cmp {
@@ -118,7 +124,7 @@ pub fn jpe(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// # Syntax
 /// `JPN [addr]`
-pub fn jpn(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn jpn(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         &Addr(addr) => {
             if !ctx.cmp {

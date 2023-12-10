@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use super::{PasmError, PasmResult};
+use super::{RtError, RtResult};
 use std::{
     collections::btree_map::{BTreeMap, Iter},
     fmt::Debug,
@@ -31,14 +31,12 @@ impl Memory {
         self.0.iter()
     }
 
-    pub fn get(&self, addr: &usize) -> PasmResult<&usize> {
-        self.0.get(addr).ok_or(PasmError::InvalidMemoryLoc(*addr))
+    pub fn get(&self, addr: &usize) -> RtResult<&usize> {
+        self.0.get(addr).ok_or(RtError::InvalidAddr(*addr))
     }
 
-    pub fn get_mut(&mut self, addr: &usize) -> PasmResult<&mut usize> {
-        self.0
-            .get_mut(addr)
-            .ok_or(PasmError::InvalidMemoryLoc(*addr))
+    pub fn get_mut(&mut self, addr: &usize) -> RtResult<&mut usize> {
+        self.0.get_mut(addr).ok_or(RtError::InvalidAddr(*addr))
     }
 
     pub fn inner(&self) -> &BTreeMap<usize, usize> {

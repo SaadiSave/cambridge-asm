@@ -48,7 +48,7 @@ mod debug;
 #[allow(clippy::enum_glob_use)]
 mod inst;
 
-pub use error::{PasmError, PasmResult, Source};
+pub use error::{RtError, RtResult, Source};
 
 pub use memory::Memory;
 
@@ -168,7 +168,7 @@ impl Context {
     /// # Panics
     /// if `op` is not usizeable. To avoid this, check `op` using [`Op::is_usizeable`]
     #[inline]
-    pub fn read(&self, op: &Op) -> PasmResult<usize> {
+    pub fn read(&self, op: &Op) -> RtResult<usize> {
         match op {
             &Op::Literal(val) => Ok(val),
             Op::Addr(addr) => self.mem.get(addr).copied(),
@@ -184,7 +184,7 @@ impl Context {
     /// # Panics
     /// If `op` is not writable. To avoid this, check `op` using [`Op::is_read_write`].
     #[inline]
-    pub fn modify(&mut self, op: &Op, f: impl Fn(&mut usize)) -> PasmResult {
+    pub fn modify(&mut self, op: &Op, f: impl Fn(&mut usize)) -> RtResult {
         match op {
             Op::Addr(x) => f(self.mem.get_mut(x)?),
             Op::Indirect(op) if op.is_usizeable() => {
@@ -247,7 +247,7 @@ pub enum Status {
     /// Program has not finished execution
     Continue,
     /// An error has been encountered during execution
-    Error(PasmError),
+    Error(RtError),
 }
 
 impl Executor {
@@ -290,7 +290,7 @@ impl Executor {
             );
 
             match (inst.func)(&mut self.ctx, &inst.op) {
-                Ok(_) => {
+                Ok(()) => {
                     if self.ctx.flow_override_reg {
                         self.ctx.flow_override_reg = false;
                     } else {

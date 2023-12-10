@@ -3,7 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-use super::{Context, PasmError::*, PasmResult};
+use super::{Context, RtError::*, RtResult};
 use crate::inst::Op::{self, *};
 
 #[inline]
@@ -22,7 +22,7 @@ fn checked_add(dest: &mut usize, val: usize, mar: usize) {
 /// 1. `ADD [lit | reg | addr]` - add to `ACC`
 /// 2. `ADD [reg | addr],[lit | reg | addr]` - add second value to first
 /// 3. `ADD [reg | addr],[lit | reg | addr],[lit | reg | addr]` - add second and third value, store to first
-pub fn add(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn add(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
@@ -66,7 +66,7 @@ fn checked_sub(dest: &mut usize, val: usize, mar: usize) {
 /// 1. `ADD [lit | reg | addr]` - subtract from `ACC`
 /// 2. `ADD [reg | addr],[lit | reg | addr]` - subtract second value from first
 /// 3. `ADD [reg | addr],[lit | reg | addr],[lit | reg | addr]` - subtract third from second value, store to first
-pub fn sub(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn sub(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         MultiOp(ops) => match ops[..] {
             [ref dest, ref val] if dest.is_read_write() && val.is_usizeable() => {
@@ -98,7 +98,7 @@ pub fn sub(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// # Syntax
 /// `INC [reg | addr]`
-pub fn inc(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn inc(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         dest if dest.is_read_write() => {
             let line = ctx.mar;
@@ -115,7 +115,7 @@ pub fn inc(ctx: &mut Context, op: &Op) -> PasmResult {
 ///
 /// # Syntax
 /// `DEC [reg | addr]`
-pub fn dec(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn dec(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         dest if dest.is_read_write() => {
             let line = ctx.mar;
@@ -135,7 +135,7 @@ pub fn dec(ctx: &mut Context, op: &Op) -> PasmResult {
 /// `ZERO [reg | addr]` - zeroes the given register or memory address
 /// `ZERO [reg | addr], ...` - zeroes all operands
 #[cfg(feature = "extended")]
-pub fn zero(ctx: &mut Context, op: &Op) -> PasmResult {
+pub fn zero(ctx: &mut Context, op: &Op) -> RtResult {
     match op {
         MultiOp(ops) => {
             for op in ops.iter().filter(|op| op.is_read_write()) {

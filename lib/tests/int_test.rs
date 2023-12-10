@@ -51,7 +51,7 @@ NONE:
 
 /// Using a completely custom instruction set
 mod custom {
-    use cambridge_asm::exec::PasmError;
+    use cambridge_asm::exec::RtError;
 
     use super::TestStdio;
     inst! {
@@ -59,7 +59,7 @@ mod custom {
             match op {
                 Fail(from) => writeln!(ctx.io.write, "From {from}").unwrap(),
                 Null => writeln!(ctx.io.write, "From Pseudoassembly").unwrap(),
-                _ => return Err(PasmError::InvalidOperand)
+                _ => return Err(RtError::InvalidOperand)
             }
         }
     }
@@ -69,7 +69,7 @@ mod custom {
             match op {
                 Fail(msg) => writeln!(ctx.io.write, "Hello, {msg}!").unwrap(),
                 Null => writeln!(ctx.io.write, "Hello!").unwrap(),
-                _ => return Err(PasmError::InvalidOperand)
+                _ => return Err(RtError::InvalidOperand)
             }
         }
     }

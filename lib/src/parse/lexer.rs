@@ -6,6 +6,7 @@
 use crate::inst::Op;
 use logos::{Lexer, Logos};
 use std::{collections::HashMap, fmt::Debug, num::ParseIntError, ops::Range};
+use thiserror::Error;
 
 fn parse_num(lex: &mut Lexer<Token>) -> Option<usize> {
     let src = if lex.slice().as_bytes()[0] == b'#' {
@@ -35,11 +36,15 @@ fn pop_parens(lex: &mut Lexer<Token>) -> String {
     chars.collect()
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum ErrorKind {
+    #[error("Invalid integer format")]
     ParseIntError(ParseIntError),
+    #[error("Syntax error")]
     SyntaxError,
+    #[error("Invalid opcode `{0}`")]
     InvalidOpcode(String),
+    #[error("Invalid operand")]
     InvalidOperand,
 }
 
