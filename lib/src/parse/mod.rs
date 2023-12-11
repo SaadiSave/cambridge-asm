@@ -19,7 +19,16 @@ pub use lexer::{ErrorKind, ErrorMap, Span};
 inst_set! {
     /// The core instruction set
     ///
-    /// Basic instructions only
+    /// * Memory and register manipulation:
+    /// `LDM`, `LDD`, `LDI`, `LDX`, `LDR`, `MOV`, `STO`
+    ///
+    /// * Comparison: `CMP`, `JPE`, `JPN`, `JMP`, `CMI`
+    ///
+    /// * Basic I/O: `IN`, `OUT`, `END`
+    ///
+    /// * Arithmetic: `INC`, `DEC`, `ADD`, `SUB`
+    ///
+    /// * Bit manipulation: `AND`, `OR`, `XOR`, `LSL`, `LSR`
     pub Core use crate::exec::{mov, cmp, io, arith, bitman}; {
         LDM => mov::ldm,
         LDD => mov::ldd,
@@ -55,7 +64,7 @@ inst_set! {
 extend! {
     /// The extended instruction set
     ///
-    /// [`Core`], plus debugging, raw input, function call and return, and no-op instructions
+    /// [`Core`], plus debugging (`DBG`), raw input (`RIN`), function `CALL` and return (`RET`), and no-op (`NOP`) instructions
     #[cfg(feature = "extended")]
     pub Extended extends Core use crate::exec::{io, arith::zero}; {
         ZERO => zero,
@@ -113,9 +122,27 @@ where
     Ok((prog, mem, src, debug_info))
 }
 
-/// Parses a string into an [`Executor`]
+/// Parse a string into an [`Executor`]
 ///
-/// This is the primary method to parse a pseudoassembly program
+/// # Arguments
+///
+/// * `T`: instruction set
+/// * `prog`: pseudo-assembly program
+/// * `io`: I/O provider, use [`make_io`]
+///
+/// returns: `Result<Executor, ErrorMap>`
+///
+/// # Example
+///
+/// ```no_run
+/// # use cambridge_asm::make_io;
+/// # use cambridge_asm::parse::{ErrorMap, Extended, jit};
+///
+/// # fn foo(s: String) -> Result<(), ErrorMap> {
+/// let exec = jit::<Extended>(s, make_io!())?;
+/// # Ok(())
+/// # }
+/// ```
 pub fn jit<T>(prog: impl Deref<Target = str>, io: Io) -> Result<Executor, ErrorMap>
 where
     T: InstSet,
@@ -137,7 +164,27 @@ where
     Ok(exe)
 }
 
-/// Parses a string into an [`Executor`] directly from a file
+/// Parse a file into an [`Executor`]
+///
+/// # Arguments
+///
+/// * `T`: instruction set
+/// * `path`: path to file containing pseudo-assembly program
+/// * `io`: I/O provider, use [`make_io`]
+///
+/// returns: `Result<Executor, ErrorMap>`
+///
+/// # Example
+///
+/// ```no_run
+/// # use cambridge_asm::make_io;
+/// # use cambridge_asm::parse::{ErrorMap, Extended, jit_from_file};
+///
+/// # fn foo(path: String) -> Result<(), ErrorMap> {
+/// let exec = jit_from_file::<Extended>(path, make_io!())?;
+/// # Ok(())
+/// # }
+/// ```
 pub fn jit_from_file<T>(path: impl AsRef<Path>, io: Io) -> Result<Executor, ErrorMap>
 where
     T: InstSet,
@@ -192,7 +239,9 @@ mod parse_tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(
+        expected = "called `Result::unwrap()` on an `Err` value: {4..7: ParseIntError(ParseIntError { kind: InvalidDigit })}"
+    )]
     fn panics() {
         let mut exec = jit::<DefaultSet>(
             include_str!("../../examples/panics.pasm"),

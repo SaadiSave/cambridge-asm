@@ -66,14 +66,17 @@ pub struct Io {
 
 /// Quickly makes an [`Io`] struct
 ///
-/// $read must implement [`Read`].
-/// $write must implement [`Write`].
+/// # Arguments (optional)
+///
+/// * `$read`: must implement [`Read`].
+/// * `$write`: must implement [`Write`].
 ///
 /// # Example
 /// ```
 /// use cambridge_asm::make_io;
 ///
-/// let io = make_io!(std::io::stdin(), std::io::sink());
+/// let default_io = make_io!(); // no macro arguments will give the default I/O provider, i.e. stdio
+/// let io = make_io!(std::io::stdin(), std::io::sink()); // you can use your own providers too
 /// ```
 #[macro_export]
 macro_rules! make_io {
@@ -165,8 +168,28 @@ impl Context {
         }
     }
 
+    /// Read the given operand from the context
+    ///
+    /// # Arguments
+    ///
+    /// * `op`:
+    ///
+    /// returns: `RtResult`
+    ///
     /// # Panics
-    /// if `op` is not usizeable. To avoid this, check `op` using [`Op::is_usizeable`]
+    ///
+    /// If `op` is not usizeable. To avoid this, check `op` using [`Op::is_usizeable`]
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use cambridge_asm::inst;
+    /// inst!(print (ctx, op) {
+    ///     if op.is_usizeable() {
+    ///         println!("{}", ctx.read(op)?);
+    ///     }
+    /// });
+    /// ```
     #[inline]
     pub fn read(&self, op: &Op) -> RtResult<usize> {
         match op {
@@ -181,8 +204,29 @@ impl Context {
         }
     }
 
+    /// Modify the given operand in the context if it is writeable
+    ///
+    /// # Arguments
+    ///
+    /// * `op`: operand
+    /// * `f`: closure to modify the value
+    ///
+    /// returns: [`RtResult`]
+    ///
     /// # Panics
-    /// If `op` is not writable. To avoid this, check `op` using [`Op::is_read_write`].
+    ///
+    /// If `op` is not writeable. To avoid this, check `op` using [`Op::is_read_write`].
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use cambridge_asm::inst;
+    /// inst!(double_inc (ctx, op) {
+    ///     if op.is_read_write() {
+    ///         ctx.modify(op, |val| *val += 2)?;
+    ///     }
+    /// });
+    /// ```
     #[inline]
     pub fn modify(&mut self, op: &Op, f: impl Fn(&mut usize)) -> RtResult {
         match op {
@@ -266,7 +310,12 @@ impl Executor {
         }
     }
 
-    /// Advances execution by one instruction
+    /// Advance execution by one instruction
+    ///
+    /// # Example
+    /// ```no_run
+    ///
+    /// ```
     pub fn step<T>(&mut self) -> Status
     where
         T: InstSet,
