@@ -2,6 +2,3 @@
 .vscode
 .idea
 Cargo.lock
-
-# build script artifacts
-cli/LIBRARY_VERSION

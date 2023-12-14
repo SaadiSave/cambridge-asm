@@ -16,5 +16,9 @@ fn main() {
         .as_ref()
         .unwrap();
 
-    std::fs::write(PathBuf::from_iter([ROOT, "LIBRARY_VERSION"]), version).unwrap();
+    std::fs::write(
+        PathBuf::from_iter([std::env::var("OUT_DIR").unwrap(), "LIBRARY_VERSION".into()]),
+        version,
+    )
+    .unwrap();
 }

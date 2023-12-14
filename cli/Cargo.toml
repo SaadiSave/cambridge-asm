@@ -33,4 +33,4 @@ version = "4"
 features = ["derive"]
 
 [build-dependencies]
-cargo_toml = "0.16"
+cargo_toml = "0.17"
