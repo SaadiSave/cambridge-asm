@@ -136,10 +136,10 @@ where
 ///
 /// ```no_run
 /// # use cambridge_asm::make_io;
-/// # use cambridge_asm::parse::{ErrorMap, Extended, jit};
+/// # use cambridge_asm::parse::{ErrorMap, DefaultSet, jit};
 ///
 /// # fn foo(s: String) -> Result<(), ErrorMap> {
-/// let exec = jit::<Extended>(s, make_io!())?;
+/// let exec = jit::<DefaultSet>(s, make_io!())?;
 /// # Ok(())
 /// # }
 /// ```
@@ -178,10 +178,10 @@ where
 ///
 /// ```no_run
 /// # use cambridge_asm::make_io;
-/// # use cambridge_asm::parse::{ErrorMap, Extended, jit_from_file};
+/// # use cambridge_asm::parse::{ErrorMap, DefaultSet, jit_from_file};
 ///
 /// # fn foo(path: String) -> Result<(), ErrorMap> {
-/// let exec = jit_from_file::<Extended>(path, make_io!())?;
+/// let exec = jit_from_file::<DefaultSet>(path, make_io!())?;
 /// # Ok(())
 /// # }
 /// ```
