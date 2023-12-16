@@ -4,7 +4,7 @@
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 use crate::{exec::RtError::*, inst};
-use std::io::Read;
+use std::io::{Read, Write};
 
 inst!(
     /// No-op
@@ -42,9 +42,9 @@ inst!(
                 }
 
                 #[allow(clippy::cast_possible_truncation)]
-                let out = x as u8 as char;
+                let out = x as u8;
 
-                write!(ctx.io.write, "{out}")?;
+                ctx.io.write.write_all(&[out])?;
             }
             src if src.is_usizeable() => {
                 let src = ctx.read(src)?;
@@ -54,9 +54,9 @@ inst!(
                 }
 
                 #[allow(clippy::cast_possible_truncation)]
-                let out = src as u8 as char;
+                let out = src as u8;
 
-                write!(ctx.io.write, "{out}")?;
+                ctx.io.write.write_all(&[out])?;
             }
             _ => return Err(InvalidOperand),
         }
