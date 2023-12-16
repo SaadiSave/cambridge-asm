@@ -102,7 +102,7 @@ pub enum Token {
     #[regex("r[0-9][0-9]?", |lex| lex.slice()[1..].parse())]
     Gpr(usize),
 
-    #[regex("#[xXoObB][0-9a-fA-F]+", parse_num)]
+    #[regex("#[&xXoObB][0-9a-fA-F]+", parse_num)]
     #[regex("#[0-9]+", parse_num)]
     Literal(usize),
 
