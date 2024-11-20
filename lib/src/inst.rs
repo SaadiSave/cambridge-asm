@@ -242,6 +242,7 @@ macro_rules! extend {
             __private: extend_priv::Combined<$parent>,
         }
 
+        $(#[$outer])*
         pub(crate) mod extend_priv {
             use $crate::inst::InstSet;
             use super::$parent;
