@@ -1,4 +1,4 @@
-FROM rust:1.72-bookworm
+FROM rust:1.82-bookworm
 
 RUN apt update && apt install -y gcc-aarch64-linux-gnu gcc-riscv64-linux-gnu gcc-mingw-w64-x86-64 python3 zip
 
