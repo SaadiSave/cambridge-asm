@@ -29,7 +29,7 @@ jobs:
         run: podman image tag "ghcr.io/saadisave/cambridge-asm-ci:${{ env.RELEASE_VERSION }}" ghcr.io/saadisave/cambridge-asm-ci:latest
 
       - name: Login to ghcr.io
-        run: echo "${{ secrets.GHCR_TOKEN }}" | podman login ghcr.io -u=saadisave --password-stdin
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u=saadisave --password-stdin
 
       - name: Push
         run: podman push "ghcr.io/saadisave/cambridge-asm-ci:${{ env.RELEASE_VERSION }}" && podman push ghcr.io/saadisave/cambridge-asm-ci:latest
