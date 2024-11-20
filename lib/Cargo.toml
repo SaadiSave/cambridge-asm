@@ -15,16 +15,12 @@ rustdoc-args = ["--cfg", "docsrs"]
 [features]
 default = ["compile", "extended"]
 extended = []
-compile = ["serde", "bincode"]
+compile = ["serde"]
 
 [dependencies]
 logos = "0.12"
 log = "0.4"
 thiserror = "1"
-
-[dependencies.bincode]
-version = "2.0.0-rc.1"
-optional = true
 
 [dependencies.serde]
 version = "1"

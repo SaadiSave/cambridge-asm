@@ -13,11 +13,7 @@ use std::{collections::BTreeMap, fmt::Display, ops::Deref, path::Path, str::From
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "bincode")]
-use bincode::{Decode, Encode};
-
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 #[derive(Debug)]
 struct CompiledInst {
     pub id: u64,
@@ -35,7 +31,6 @@ type CompiledTree = BTreeMap<usize, CompiledInst>;
 
 /// Represents a compiled program ready to be serialized into a file
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 #[derive(Debug)]
 pub struct CompiledProg {
     prog: CompiledTree,

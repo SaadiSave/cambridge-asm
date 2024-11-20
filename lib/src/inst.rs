@@ -11,13 +11,9 @@ use std::{fmt::Display, ops::Deref, str::FromStr};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "bincode")]
-use bincode::{Decode, Encode};
-
 /// Represents all possible types of pseudoassembly operands
 #[derive(PartialEq, Debug, Clone, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 pub enum Op {
     Fail(String),
     Acc,
