@@ -14,13 +14,15 @@ pub type ExecFunc = fn(&mut Context, &Op) -> RtResult;
 /// Runtime representation of an instruction
 #[derive(Clone)]
 pub struct ExecInst {
+    /// Identifies the instruction with an integer, fixes rust-lang/rfcs#3535
+    pub id: u64,
     pub func: ExecFunc,
     pub op: Op,
 }
 
 impl ExecInst {
-    pub fn new(inst: ExecFunc, op: Op) -> Self {
-        Self { func: inst, op }
+    pub fn new(id: u64, inst: ExecFunc, op: Op) -> Self {
+        Self { func: inst, op, id }
     }
 }
 

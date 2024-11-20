@@ -56,6 +56,6 @@ const PROGRAMS: [(&str, usize, &[u8], &[u8]); 5] = [
         include_str!("../examples/showoff.pasm"),
         68,
         b"DIANA",
-        b"HELLO\n",
+        b"HELLO\nDIANA\n",
     ),
 ];

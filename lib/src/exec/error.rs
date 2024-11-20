@@ -65,6 +65,11 @@ impl Source {
         writeln!(write, "Runtime Error:")?;
         writeln!(write)?;
 
+        if self.0.is_empty() {
+            writeln!(write, "(source empty, error at position {pos})")?;
+            return writeln!(write, "message: {err}");
+        }
+
         for (i, s) in self.0.iter().enumerate() {
             if pos == i {
                 if let Some(prev) = self.0.get(i - 1) {

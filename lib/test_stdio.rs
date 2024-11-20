@@ -40,9 +40,9 @@ impl io::Read for TestStdio {
 
             if r_lock.is_empty() {
                 return Err(Error::new(UnexpectedEof, "Input is empty"));
-            } else {
-                buf.write(&r_lock)?
             }
+            
+            buf.write(&r_lock)?
         };
 
         self.0.write().unwrap().drain(0..written);

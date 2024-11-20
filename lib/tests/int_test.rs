@@ -16,7 +16,7 @@ mod extension {
     }
 
     extend! {
-        Ext extends Core {
+        Ext extends Core use super::*; {
             EXT => ext,
         }
     }

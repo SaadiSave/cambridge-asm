@@ -262,7 +262,7 @@ impl Display for Context {
 
         writeln!(f, "{:>6}: Memory {{", "mem")?;
 
-        for (addr, entry) in self.mem.iter() {
+        for (addr, entry) in &self.mem {
             writeln!(f, "{addr:>8}: {entry},")?;
         }
 
@@ -334,7 +334,7 @@ impl Executor {
 
             trace!(
                 "Executing instruction {} {}",
-                T::from_func_ptr(inst.func).unwrap_or_else(|msg| panic!("{msg}")),
+                T::from_id(inst.id).unwrap_or_else(|msg| panic!("{msg}")),
                 inst.op
             );
 
@@ -375,7 +375,7 @@ impl Executor {
         }
     }
 
-    pub fn display<T>(&self) -> Result<String, <T as FromStr>::Err>
+    pub fn display_with_opcodes<T>(&self) -> Result<String, <T as FromStr>::Err>
     where
         T: InstSet,
         <T as FromStr>::Err: Display,
@@ -388,8 +388,8 @@ impl Executor {
 
         writeln!(s, "Executor {{").unwrap();
 
-        for (addr, ExecInst { op, func }) in &self.prog {
-            writeln!(s, "{addr:>6}: {func} {op}", func = T::from_func_ptr(*func)?).unwrap();
+        for (addr, ExecInst { id, op, .. }) in &self.prog {
+            writeln!(s, "{addr:>6}: {func} {op}", func = T::from_id(*id)?).unwrap();
         }
 
         s.push('}');
@@ -435,12 +435,12 @@ fn exec() {
     let prog: BTreeMap<usize, ExecInst> = BTreeMap::from(
         // Division algorithm from examples/division.pasm
         [
-            (0, ExecInst::new(arith::inc, "202".into())),
-            (1, ExecInst::new(arith::add, "203,201".into())),
-            (2, ExecInst::new(cmp::cmp, "203,204".into())),
-            (3, ExecInst::new(cmp::jpn, "0".into())),
-            (4, ExecInst::new(mov::ldd, "202".into())),
-            (5, ExecInst::new(io::end, "".into())),
+            (0, ExecInst::new(0, arith::inc, "202".into())),
+            (1, ExecInst::new(0, arith::add, "203,201".into())),
+            (2, ExecInst::new(0, cmp::cmp, "203,204".into())),
+            (3, ExecInst::new(0, cmp::jpn, "0".into())),
+            (4, ExecInst::new(0, mov::ldd, "202".into())),
+            (5, ExecInst::new(0, io::end, "".into())),
         ],
     );
 

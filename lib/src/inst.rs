@@ -166,7 +166,8 @@ where
     <Self as FromStr>::Err: Display,
 {
     fn as_func_ptr(&self) -> ExecFunc;
-    fn from_func_ptr(_: ExecFunc) -> Result<Self, <Self as FromStr>::Err>;
+    fn id(&self) -> u64;
+    fn from_id(_: u64) -> Result<Self, <Self as FromStr>::Err>;
 }
 
 /// Macro to generate an instruction set
@@ -179,6 +180,8 @@ macro_rules! inst_set {
     };
     ($(#[$outer:meta])* $vis:vis $name:ident $using:item { $( $inst:ident => $func:expr,)+ }) => {
         $(#[$outer])*
+        #[repr(u64)]
+        #[derive(Clone, Copy)]
         $vis enum $name {
             $($inst,)+
         }
@@ -190,7 +193,7 @@ macro_rules! inst_set {
             fn from_str(s: &str) -> Result<Self, Self::Err> {
                 match s.to_uppercase().as_str() {
                     $( stringify!($inst) => Ok(Self::$inst),)+
-                    _ => Err(format!("{s} is not an operation")),
+                    _ => Err(format!("{s} is not an instruction")),
                 }
             }
         }
@@ -213,15 +216,14 @@ macro_rules! inst_set {
                 }
             }
 
-            fn from_func_ptr(f: $crate::exec::ExecFunc) -> Result<Self, String> {
-                $using
-                $(
-                const $inst: $crate::exec::ExecFunc = $func;
-                )+
+            fn id(&self) -> u64 {
+                *self as u64
+            }
 
-                match f {
-                    $($inst => Ok(Self::$inst),)+
-                    _ => Err(format!("0x{:X} is not a valid function pointer", f as usize)),
+            fn from_id(id: u64) -> Result<Self, String> {
+                match id {
+                    $(x if x == Self::$inst as u64 => Ok(Self::$inst),)+
+                    _ => Err(format!("0x{:X} is not a valid instruction ID", id)),
                 }
             }
         }
@@ -231,6 +233,8 @@ macro_rules! inst_set {
 /// Macro to extend an instruction set
 ///
 /// For an example, go to this [file](https://github.com/SaadiSave/cambridge-asm/blob/main/cambridge-asm/tests/int_test.rs)
+///
+/// Due to language limitations, do not use this macro within the same file twice
 #[macro_export]
 macro_rules! extend {
     ($(#[$outer:meta])* $vis:vis $name:ident extends $parent:ident { $( $inst:ident => $func:expr,)+ }) => {
@@ -238,9 +242,119 @@ macro_rules! extend {
     };
     ($(#[$outer:meta])* $vis:vis $name:ident extends $parent:ident $using:item { $( $inst:ident => $func:expr,)+ }) => {
         $(#[$outer])*
-        $vis enum $name {
-            $($inst,)+
-            Parent($parent)
+        $vis struct $name {
+            __private: extend_priv::Combined<$parent>,
+        }
+
+        pub(crate) mod extend_priv {
+            use $crate::inst::InstSet;
+            use super::$parent;
+            #[repr(u64)]
+            #[derive(Clone, Copy)]
+            pub enum $name {
+                $($inst,)+
+                #[allow(non_camel_case_types)]
+                LAST_INST_MARKER,
+            }
+
+            impl std::str::FromStr for $name {
+                type Err = String;
+
+                fn from_str(s: &str) -> Result<Self, Self::Err> {
+                    match s.to_uppercase().as_str() {
+                        $( stringify!($inst) => Ok(Self::$inst),)+
+                        _ => Err(String::new()),
+                    }
+                }
+            }
+
+            impl $name {
+                fn id(self) -> u64 {
+                    self as u64
+                }
+
+                fn as_func_ptr(&self) -> $crate::exec::ExecFunc {
+                    $using
+                    match self {
+                        $(Self::$inst => $func,)+
+                        Self::LAST_INST_MARKER => panic!("This should never happen, report this as a bug"),
+                    }
+                }
+
+                fn from_id(id: u64) -> Result<Self, String> {
+                    match id {
+                        $(x if x == Self::$inst as u64 => Ok(Self::$inst),)+
+                        _ => Err(format!("0x{id:X} is not a valid instruction ID")),
+                    }
+                }
+            }
+
+            impl std::fmt::Display for $name {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    match self {
+                        $(Self::$inst => f.write_str(stringify!($inst)),)+
+                        Self::LAST_INST_MARKER => panic!("This should never happen, report this as a bug"),
+                    }
+                }
+            }
+
+            pub enum Combined<T>
+            where
+                T: $crate::inst::InstSet,
+                <T as std::str::FromStr>::Err: std::fmt::Display,
+            {
+                Extension($name),
+                Parent(T),
+            }
+
+            impl Combined<$parent> {
+                const LAST_INST_MARKER: u64 = $name::LAST_INST_MARKER as u64;
+
+                pub fn id(&self) -> u64 {
+                    match self {
+                        Self::Extension(ext) => ext.id(),
+                        Self::Parent(parent) => Self::LAST_INST_MARKER + parent.id()
+                    }
+                }
+
+                pub fn from_id(id: u64) -> Result<Self, String> {
+                    if id >= $name::LAST_INST_MARKER as u64 {
+                        Ok(Combined::Parent($parent::from_id(id - Self::LAST_INST_MARKER)?))
+                    } else {
+                        Ok(Combined::Extension($name::from_id(id)?))
+                    }
+                }
+
+                pub fn as_func_ptr(&self) -> $crate::exec::ExecFunc {
+                    match self {
+                        Self::Extension(e) => e.as_func_ptr(),
+                        Self::Parent(p) => p.as_func_ptr(),
+                    }
+                }
+            }
+
+            impl std::str::FromStr for Combined<$parent> {
+                type Err = String;
+
+                fn from_str(s: &str) -> Result<Self, Self::Err> {
+                    if let Ok(res) = s.parse::<$name>() {
+                        Ok(Combined::Extension(res))
+                    } else if let Ok(res) = s.parse::<$parent>() {
+                        Ok(Combined::Parent(res))
+                    } else {
+                        Err(format!("{s} is not an instruction"))
+                    }
+                }
+            }
+
+            impl std::fmt::Display for Combined<$parent> {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    match self {
+                        Self::Extension(e) => write!(f, "{e}"),
+                        Self::Parent(p) => write!(f, "{p}"),
+                    }
+                }
+            }
         }
 
         $(#[$outer])*
@@ -248,43 +362,29 @@ macro_rules! extend {
             type Err = String;
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                match s.to_uppercase().as_str() {
-                    $( stringify!($inst) => Ok(Self::$inst),)+
-                    s => Ok(Self::Parent(s.parse::<Core>()?)),
-                }
+                Ok($name { __private: s.to_uppercase().as_str().parse::<extend_priv::Combined<_>>()? })
             }
         }
 
         $(#[$outer])*
         impl std::fmt::Display for $name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                match self {
-                    $(Self::$inst => f.write_str(stringify!($inst)),)+
-                    Self::Parent(p) => write!(f, "{}", p),
-                }
+                write!(f, "{}", self.__private)
             }
         }
 
         $(#[$outer])*
         impl $crate::inst::InstSet for $name {
             fn as_func_ptr(&self) -> $crate::exec::ExecFunc {
-                $using
-                match self {
-                    $(Self::$inst => $func,)+
-                    Self::Parent(p) => p.as_func_ptr()
-                }
+                self.__private.as_func_ptr()
             }
 
-            fn from_func_ptr(f: $crate::exec::ExecFunc) -> Result<Self, String> {
-                $using
-                $(
-                const $inst: $crate::exec::ExecFunc = $func;
-                )+
+            fn id(&self) -> u64 {
+                self.__private.id()
+            }
 
-                match f {
-                    $($inst => Ok(Self::$inst),)+
-                    f => Ok(Self::Parent($parent::from_func_ptr(f)?)),
-                }
+            fn from_id(id: u64) -> Result<Self, String> {
+                Ok( Self { __private: extend_priv::Combined::from_id(id)? })
             }
         }
     };
@@ -296,6 +396,7 @@ where
     T: InstSet,
     <T as FromStr>::Err: Display,
 {
+    pub id: u64,
     pub inst: T,
     pub op: Op,
 }
@@ -306,10 +407,14 @@ where
     <T as FromStr>::Err: Display,
 {
     pub fn new(inst: T, op: Op) -> Self {
-        Self { inst, op }
+        Self {
+            id: inst.id(),
+            op,
+            inst,
+        }
     }
 
     pub fn to_exec_inst(self) -> ExecInst {
-        ExecInst::new(self.inst.as_func_ptr(), self.op)
+        ExecInst::new(self.id, self.inst.as_func_ptr(), self.op)
     }
 }

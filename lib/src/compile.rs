@@ -20,13 +20,14 @@ use bincode::{Decode, Encode};
 #[cfg_attr(feature = "bincode", derive(Encode, Decode))]
 #[derive(Debug)]
 struct CompiledInst {
+    pub id: u64,
     pub inst: String,
     pub op: Op,
 }
 
 impl CompiledInst {
-    pub fn new(inst: String, op: Op) -> Self {
-        Self { inst, op }
+    pub fn new(id: u64, inst: String, op: Op) -> Self {
+        Self { id, inst, op }
     }
 }
 
@@ -60,10 +61,11 @@ impl CompiledProg {
         let prog = self
             .prog
             .into_iter()
-            .map(|(addr, CompiledInst { inst, op })| {
+            .map(|(addr, CompiledInst { inst, op, id })| {
                 (
                     addr,
                     ExecInst::new(
+                        id,
                         inst.parse::<T>()
                             .unwrap_or_else(|s| panic!("{s}"))
                             .as_func_ptr(),
@@ -92,14 +94,14 @@ where
 
     let prog = prog
         .into_iter()
-        .map(|(addr, ExecInst { func, op })| {
-            let str_inst = match T::from_func_ptr(func) {
+        .map(|(addr, ExecInst { op, id, .. })| {
+            let str_inst = match T::from_id(id) {
                 Ok(inst) => inst,
                 Err(e) => panic!("{e}"),
             }
             .to_string();
 
-            (addr, CompiledInst::new(str_inst, op))
+            (addr, CompiledInst::new(id, str_inst, op))
         })
         .collect();
 

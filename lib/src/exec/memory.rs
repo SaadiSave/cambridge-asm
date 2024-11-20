@@ -44,6 +44,14 @@ impl Memory {
     }
 }
 
+impl<'a> IntoIterator for &'a Memory {
+    type IntoIter = std::collections::btree_map::Iter<'a, usize, usize>;
+    type Item = (&'a usize, &'a usize);
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 impl<T> From<T> for Memory
 where
     T: Into<BTreeMap<usize, usize>>,

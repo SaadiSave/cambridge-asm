@@ -6,6 +6,9 @@ ldm r0, #206
 ldm r1, #5
 call read
 mov acc, 206
+ldm r0, #206
+ldm r1, #5
+call print
 end
 
 // procedure to print from linear memory

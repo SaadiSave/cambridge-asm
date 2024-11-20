@@ -3,6 +3,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+#![allow(clippy::upper_case_acronyms)]
+
 use crate::{
     exec::{Context, DebugInfo, ExecInst, Executor, Io, Memory, Source},
     extend,
@@ -158,7 +160,11 @@ where
     );
 
     info!("Executor created");
-    debug!("{}\n", exe.display::<T>().unwrap_or_else(|s| panic!("{s}")));
+    debug!(
+        "{}\n",
+        exe.display_with_opcodes::<T>()
+            .unwrap_or_else(|s| panic!("{s}"))
+    );
     debug!("The initial context:\n{}\n", exe.ctx);
 
     Ok(exe)

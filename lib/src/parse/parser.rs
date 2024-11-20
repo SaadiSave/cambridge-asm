@@ -29,6 +29,7 @@ type Line = Vec<WithSpan<Token>>;
 
 #[derive(Clone)]
 pub struct Parser<'a, I> {
+    #[allow(dead_code)]
     pub src: &'a str,
     lines: Vec<Line>,
     err: ErrorMap,
@@ -101,8 +102,8 @@ where
 
         let mut ops = rest
             .iter()
-            .cloned()
             .filter(|t| !matches!(t, Token::Comma))
+            .cloned()
             .map(Op::from)
             .collect::<Vec<_>>();
 
@@ -182,7 +183,7 @@ where
             .filter(|v| !v.is_empty())
             .collect::<Vec<_>>();
 
-        assert!((blocks.len() >= 2), "Unable to parse. Your source may not contain blank line(s) between the program and the memory, or the memory might be absent");
+        assert!(blocks.len() >= 2, "Unable to parse. Your source may not contain blank line(s) between the program and the memory, or the memory might be absent");
 
         let mems = blocks
             .pop()
@@ -267,11 +268,7 @@ where
             }
         }
 
-        let mut ir = insts
-            .into_iter()
-            .enumerate()
-            .map(|(idx, inst)| (idx, inst))
-            .collect::<Vec<_>>();
+        let mut ir = insts.into_iter().enumerate().collect::<Vec<_>>();
 
         for (to, from, multiop_idx) in links {
             match &ir[from].1.op {
@@ -466,7 +463,7 @@ where
     pub fn new(addr: usize, opcode: I, op: Op) -> Self {
         Self {
             addr,
-            inst: inst::Inst { inst: opcode, op },
+            inst: inst::Inst::new(opcode, op),
         }
     }
 }
