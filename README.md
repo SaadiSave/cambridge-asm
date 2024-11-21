@@ -1,6 +1,8 @@
 # cambridge-asm
 
-[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/saadisave/cambridge-asm/Test?style=for-the-badge)](https://github.com/SaadiSave/cambridge-asm/actions/workflows/test.yml) [![Crates.io](https://img.shields.io/crates/v/cambridge-asm?label=Lib&style=for-the-badge)](https://crates.io/crates/cambridge-asm) [![Crates.io](https://img.shields.io/crates/v/cambridge-asm-cli?label=cli&style=for-the-badge)](https://crates.io/crates/cambridge-asm-cli)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/SaadiSave/cambridge-asm/test.yml?style=for-the-badge)](https://github.com/SaadiSave/cambridge-asm/actions/workflows/test.yml)
+[![Crates.io](https://img.shields.io/crates/v/cambridge-asm?label=Lib&style=for-the-badge)](https://crates.io/crates/cambridge-asm)
+[![Crates.io](https://img.shields.io/crates/v/cambridge-asm-cli?label=cli&style=for-the-badge)](https://crates.io/crates/cambridge-asm-cli)
 
 ## **Disclaimer**
 
