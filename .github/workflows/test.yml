@@ -12,6 +12,9 @@ on:
       - "lib/**"
       - "cli/**"
   workflow_call:
+    inputs:
+      package:
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
@@ -21,6 +24,8 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     container: ghcr.io/saadisave/cambridge-asm-ci:latest
+    env:
+      package-arg: ${{ format('{0}{1}', inputs.package != '' && '-p ' || '', inputs.package) }}
 
     steps:
       - uses: actions/checkout@v3
@@ -29,10 +34,10 @@ jobs:
         run: cargo fmt --check
 
       - name: Run clippy
-        run: cargo hack --feature-powerset clippy
+        run: cargo hack ${{ env.package-arg }} --feature-powerset clippy
 
       - name: Run in debug mode
-        run: cargo hack test --feature-powerset && cargo hack build --feature-powerset
+        run: cargo hack test ${{ env.package-arg }} --feature-powerset && cargo hack build ${{ env.package-arg }} --feature-powerset
 
       - name: Run in release mode
-        run: cargo hack test --release --feature-powerset && cargo hack build --release --feature-powerset
+        run: cargo hack test ${{ env.package-arg }} --release --feature-powerset && cargo hack build ${{ env.package-arg }} --release --feature-powerset
