@@ -11,7 +11,7 @@ use cambridge_asm::{
     parse::{self, DefaultSet},
 };
 use clap::{Parser, ValueEnum};
-use std::ffi::OsString;
+use std::{fs::File, io::Read, path::PathBuf};
 
 #[derive(Parser)]
 #[clap(name = "Cambridge Pseudoassembly Interpreter")]
@@ -22,7 +22,7 @@ enum Commands {
     /// Run compiled or plaintext pseudoassembly
     Run {
         /// Path to the input file containing compiled or plaintext pseudoassembly
-        path: OsString,
+        path: PathBuf,
 
         /// Increase logging level
         #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count)]
@@ -41,11 +41,11 @@ enum Commands {
     /// Compile pseudoassembly
     Compile {
         /// Path to the input file containing pseudoassembly
-        input: OsString,
+        input: PathBuf,
 
         /// Path to output file
         #[arg(short = 'o', long = "output")]
-        output: Option<OsString>,
+        output: Option<PathBuf>,
 
         /// Increase logging level
         #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count)]
@@ -73,7 +73,7 @@ enum InFormats {
     Json,
     Ron,
     Yaml,
-    Bin,
+    Cbor,
 }
 
 #[derive(ValueEnum, Clone)]
@@ -81,7 +81,7 @@ enum OutFormats {
     Json,
     Ron,
     Yaml,
-    Bin,
+    Cbor,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -113,34 +113,30 @@ fn main() -> anyhow::Result<()> {
 }
 
 #[allow(clippy::enum_glob_use, clippy::needless_pass_by_value)]
-fn run(
-    path: OsString,
-    verbosity: u8,
-    bench: bool,
-    format: InFormats,
-    io: Io,
-) -> anyhow::Result<()> {
+fn run(path: PathBuf, verbosity: u8, bench: bool, format: InFormats, io: Io) -> anyhow::Result<()> {
     use InFormats::*;
 
     init_logger(verbosity);
 
-    let prog_bytes = std::fs::read(path)?;
+    let file = File::open(path)?;
 
     let mut timer = bench.then(std::time::Instant::now);
 
+    let read_to_string = |mut f: File| -> std::io::Result<_> {
+        #[allow(clippy::cast_possible_truncation)]
+        let mut buf = String::with_capacity(f.metadata()?.len() as usize);
+        f.read_to_string(&mut buf)?;
+        Ok(buf)
+    };
+
     let mut executor = match format {
-        Pasm => parse::jit::<DefaultSet>(String::from_utf8_lossy(&prog_bytes), io).unwrap(),
-        Json => serde_json::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))?
+        Pasm => parse::jit::<DefaultSet>(read_to_string(file)?, io).unwrap(),
+        Json => serde_json::from_str::<CompiledProg>(&read_to_string(file)?)?
             .to_executor::<DefaultSet>(io),
-        Ron => ron::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))?
+        Ron => ron::from_str::<CompiledProg>(&read_to_string(file)?)?.to_executor::<DefaultSet>(io),
+        Yaml => serde_yaml::from_str::<CompiledProg>(&read_to_string(file)?)?
             .to_executor::<DefaultSet>(io),
-        Yaml => serde_yaml::from_str::<CompiledProg>(&String::from_utf8_lossy(&prog_bytes))?
-            .to_executor::<DefaultSet>(io),
-        Bin => {
-            bincode::decode_from_slice::<CompiledProg, _>(&prog_bytes, bincode::config::standard())?
-                .0
-                .to_executor::<DefaultSet>(io)
-        }
+        Cbor => ciborium::from_reader::<CompiledProg, _>(file)?.to_executor::<DefaultSet>(io),
     };
 
     timer = timer.map(|t| {
@@ -163,13 +159,13 @@ fn run(
 
 #[allow(clippy::enum_glob_use, clippy::needless_pass_by_value)]
 fn compile(
-    mut input: OsString,
-    output: Option<OsString>,
+    mut input: PathBuf,
+    output: Option<PathBuf>,
     verbosity: u8,
     format: OutFormats,
     minify: bool,
     debug: bool,
-) -> std::io::Result<()> {
+) -> anyhow::Result<()> {
     use OutFormats::*;
 
     init_logger(verbosity);
@@ -179,45 +175,50 @@ fn compile(
     let compiled = compile::compile::<DefaultSet>(prog, debug).unwrap();
 
     let output_path = output.unwrap_or_else(|| {
-        input.push(match format {
-            Json => ".json",
-            Ron => ".ron",
-            Yaml => ".yaml",
-            Bin => ".bin",
-        });
+        let ext = match format {
+            Json => "json",
+            Ron => "ron",
+            Yaml => "yaml",
+            Cbor => "cbor",
+        };
+        input.set_extension(ext);
         input
     });
 
-    let serialised = match format {
-        Json => {
-            use serde_json::ser::{to_string, to_string_pretty};
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(output_path)?;
 
-            {
-                if minify {
-                    to_string(&compiled).unwrap()
-                } else {
-                    to_string_pretty(&compiled).unwrap()
-                }
-            }
-            .into_bytes()
+    let json = |w: File, v: &CompiledProg| {
+        if minify {
+            serde_json::to_writer(w, v)
+        } else {
+            serde_json::to_writer_pretty(w, v)
         }
-        Ron => {
-            use ron::ser::{to_string, to_string_pretty, PrettyConfig};
-
-            {
-                if minify {
-                    to_string(&compiled).unwrap()
-                } else {
-                    to_string_pretty(&compiled, PrettyConfig::default()).unwrap()
-                }
-            }
-            .into_bytes()
-        }
-        Yaml => serde_yaml::to_string(&compiled).unwrap().into_bytes(),
-        Bin => bincode::encode_to_vec(&compiled, bincode::config::standard()).unwrap(),
     };
 
-    std::fs::write(output_path, serialised)
+    let ron = |w: File, v: &CompiledProg| {
+        if minify {
+            ron::ser::to_writer(w, v)
+        } else {
+            ron::ser::to_writer_pretty(w, v, ron::ser::PrettyConfig::default())
+        }
+    };
+
+    let yaml = |w: File, v: &CompiledProg| serde_yaml::to_writer(w, v);
+
+    let cbor = |w: File, v: &CompiledProg| ciborium::ser::into_writer(v, w);
+
+    match format {
+        Json => json(file, &compiled)?,
+        Ron => ron(file, &compiled)?,
+        Yaml => yaml(file, &compiled)?,
+        Cbor => cbor(file, &compiled)?,
+    };
+
+    Ok(())
 }
 
 fn init_logger(verbosity: u8) {

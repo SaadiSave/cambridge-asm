@@ -1,6 +1,7 @@
 # cambridge-asm-cli
 
-[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/saadisave/cambridge-asm/Publish%20CLI?style=for-the-badge)](https://github.com/SaadiSave/cambridge-asm/actions/workflows/publish-cli.yml) [![Crates.io](https://img.shields.io/crates/v/cambridge-asm?style=for-the-badge)](https://crates.io/crates/cambridge-asm)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/SaadiSave/cambridge-asm/publish-cli.yml?style=for-the-badge)](https://github.com/SaadiSave/cambridge-asm/actions/workflows/publish-cli.yml)
+[![Crates.io](https://img.shields.io/crates/v/cambridge-asm?style=for-the-badge)](https://crates.io/crates/cambridge-asm)
 
 Command line interface to execute pseudoassembly programs
 
@@ -29,42 +30,37 @@ SUBCOMMANDS:
 ### `casm help run`
 
 ```text
-casm-run 
 Run compiled or plaintext pseudoassembly
 
-USAGE:
-    casm run [OPTIONS] <PATH>
+Usage: casm run [OPTIONS] <PATH>
 
-ARGS:
-    <PATH>    Path to the input file containing compiled or plaintext pseudoassembly
+Arguments:
+  <PATH>  Path to the input file containing compiled or plaintext pseudoassembly
 
-OPTIONS:
-    -f, --format <FORMAT>    Format of input file [default: pasm] [possible values: pasm, json, ron,
-                             yaml, bin]
-    -h, --help               Print help information
-    -t, --bench              Show execution time
-    -v, --verbose            Increase logging level
+Options:
+  -v, --verbose...       Increase logging level
+  -t, --bench            Show execution time
+  -f, --format <FORMAT>  Format of input file [default: pasm] [possible values: pasm, json, ron, yaml, cbor]
+  -h, --help             Print help
 ```
 
 ### `casm help compile`
 
 ```text
-casm-compile 
 Compile pseudoassembly
 
-USAGE:
-    casm compile [OPTIONS] <INPUT>
+Usage: casm compile [OPTIONS] <INPUT>
 
-ARGS:
-    <INPUT>    Path to the input file containing pseudoassembly
+Arguments:
+  <INPUT>  Path to the input file containing pseudoassembly
 
-OPTIONS:
-    -f, --format <FORMAT>    Format of output file [default: json] [possible values: json, ron,
-                             yaml, bin]
-    -h, --help               Print help information
-    -m, --minify             Minify output
-    -o, --output <OUTPUT>    Path to output file
-    -v, --verbose            Increase logging level
+Options:
+  -o, --output <OUTPUT>  Path to output file
+  -v, --verbose...       Increase logging level
+  -f, --format <FORMAT>  Format of output file [default: json] [possible values: json, ron, yaml, cbor]
+  -m, --minify           Minify output
+  -d, --debug            Include debuginfo
+  -h, --help             Print help
 ```
 
 ## Log levels
