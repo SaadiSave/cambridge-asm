@@ -7,6 +7,7 @@ include!("../test_stdio.rs");
 mod extension {
     use super::TestStdio;
     use cambridge_asm::parse::Core;
+    use std::io::Write;
 
     inst! {
         ext (ctx) {
@@ -51,14 +52,15 @@ NONE:
 
 /// Using a completely custom instruction set
 mod custom {
-    use cambridge_asm::exec::RtError;
-
     use super::TestStdio;
+    use cambridge_asm::exec::RtError;
+    use std::io::Write;
+
     inst! {
         from (ctx, op) {
             match op {
-                Fail(from) => writeln!(ctx.io.write, "From {from}").unwrap(),
-                Null => writeln!(ctx.io.write, "From Pseudoassembly").unwrap(),
+                Fail(from) => writeln!(ctx.io.write, "From {from}")?,
+                Null => writeln!(ctx.io.write, "From Pseudoassembly")?,
                 _ => return Err(RtError::InvalidOperand)
             }
         }
@@ -67,8 +69,8 @@ mod custom {
     inst! {
         greet (ctx, op) {
             match op {
-                Fail(msg) => writeln!(ctx.io.write, "Hello, {msg}!").unwrap(),
-                Null => writeln!(ctx.io.write, "Hello!").unwrap(),
+                Fail(msg) => writeln!(ctx.io.write, "Hello, {msg}!")?,
+                Null => writeln!(ctx.io.write, "Hello!")?,
                 _ => return Err(RtError::InvalidOperand)
             }
         }

@@ -60,8 +60,8 @@ pub use debug::DebugInfo;
 ///
 /// Boxed for convenience.
 pub struct Io {
-    pub read: BufReader<Box<dyn Read>>,
-    pub write: Box<dyn Write>,
+    pub read: BufReader<Box<dyn Read + Send + Sync>>,
+    pub write: Box<dyn Write + Send + Sync>,
 }
 
 /// Quickly makes an [`Io`] struct
@@ -427,34 +427,39 @@ impl Debug for Executor {
 }
 
 #[cfg(test)]
-#[test]
-fn exec() {
-    use crate::parse;
-    use std::collections::BTreeMap;
+mod tests {
+    use super::*;
 
-    let prog: BTreeMap<usize, ExecInst> = BTreeMap::from(
-        // Division algorithm from examples/division.pasm
-        [
-            (0, ExecInst::new(0, arith::inc, "202".into())),
-            (1, ExecInst::new(0, arith::add, "203,201".into())),
-            (2, ExecInst::new(0, cmp::cmp, "203,204".into())),
-            (3, ExecInst::new(0, cmp::jpn, "0".into())),
-            (4, ExecInst::new(0, mov::ldd, "202".into())),
-            (5, ExecInst::new(0, io::end, "".into())),
-        ],
-    );
+    #[test]
+    fn ensure_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<Executor>();
+    }
 
-    let mem: BTreeMap<usize, usize> =
-        BTreeMap::from([(200, 0), (201, 5), (202, 0), (203, 0), (204, 15)]);
+    #[test]
+    fn exec() {
+        let prog =
+            // Division algorithm from examples/division.pasm
+            [
+                (0, ExecInst::new(0, arith::inc, "202".into())),
+                (1, ExecInst::new(0, arith::add, "203,201".into())),
+                (2, ExecInst::new(0, cmp::cmp, "203,204".into())),
+                (3, ExecInst::new(0, cmp::jpn, "0".into())),
+                (4, ExecInst::new(0, mov::ldd, "202".into())),
+                (5, ExecInst::new(0, io::end, "".into())),
+            ].into();
 
-    let mut exec = Executor::new(
-        "None",
-        prog,
-        Context::new(Memory::new(mem)),
-        DebugInfo::default(),
-    );
+        let mem = [(200, 0), (201, 5), (202, 0), (203, 0), (204, 15)].into();
 
-    exec.exec::<parse::DefaultSet>();
+        let mut exec = Executor::new(
+            "None",
+            prog,
+            Context::new(Memory::new(mem)),
+            DebugInfo::default(),
+        );
 
-    assert_eq!(exec.ctx.acc, 3);
+        exec.exec::<crate::parse::DefaultSet>();
+
+        assert_eq!(exec.ctx.acc, 3);
+    }
 }

@@ -1,13 +1,16 @@
 use std::string::FromUtf8Error;
-use std::{io, rc::Rc, sync::RwLock};
+use std::{
+    io,
+    sync::{Arc, RwLock},
+};
 
 #[derive(Clone)]
 #[repr(transparent)]
-pub struct TestStdio(Rc<RwLock<Vec<u8>>>);
+pub struct TestStdio(Arc<RwLock<Vec<u8>>>);
 
 impl TestStdio {
     pub fn new(s: impl std::ops::Deref<Target = [u8]>) -> Self {
-        Self(Rc::new(RwLock::new(s.to_vec())))
+        Self(Arc::new(RwLock::new(s.to_vec())))
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
@@ -41,7 +44,7 @@ impl io::Read for TestStdio {
             if r_lock.is_empty() {
                 return Err(Error::new(UnexpectedEof, "Input is empty"));
             }
-            
+
             buf.write(&r_lock)?
         };
 
