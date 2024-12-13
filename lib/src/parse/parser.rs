@@ -7,7 +7,7 @@ use crate::{
     exec::{self, DebugInfo},
     inst::{self, InstSet, Op},
     parse::lexer::{
-        ErrorKind, ErrorMap, LinearMemory, ParseError, Span, Token, TokensWithSpan, WithSpan,
+        ErrorKind, ErrorMap, LinearMemory, ParseError, Span, Token, TokensWithError, WithSpan,
     },
 };
 use logos::Logos;
@@ -43,7 +43,7 @@ where
     <I as FromStr>::Err: Display,
 {
     pub fn new(src: &'a str) -> Self {
-        let (lines, err) = TokensWithSpan(Token::lexer(src)).lines();
+        let (lines, err) = TokensWithError(Token::lexer(src)).lines();
         Self {
             src,
             lines,

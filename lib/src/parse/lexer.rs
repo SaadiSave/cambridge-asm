@@ -8,7 +8,7 @@ use logos::{Lexer, Logos};
 use std::{collections::HashMap, fmt::Debug, num::ParseIntError, ops::Range};
 use thiserror::Error;
 
-fn parse_num(lex: &mut Lexer<Token>) -> Option<usize> {
+fn parse_num(lex: &mut Lexer<Token>) -> Result<usize, ErrorKind> {
     let src = if lex.slice().as_bytes()[0] == b'#' {
         &lex.slice()[1..]
     } else {
@@ -20,13 +20,9 @@ fn parse_num(lex: &mut Lexer<Token>) -> Option<usize> {
         b'x' | b'X' | b'&' => usize::from_str_radix(&src[1..], 16),
         b'o' | b'O' => usize::from_str_radix(&src[1..], 8),
         _ => src.parse(),
-    };
+    }?;
 
-    res.map_err(|e| {
-        lex.extras
-            .push_error(lex.span(), ErrorKind::ParseIntError(e))
-    })
-    .ok()
+    Ok(res)
 }
 
 fn pop_parens(lex: &mut Lexer<Token>) -> String {
@@ -36,16 +32,22 @@ fn pop_parens(lex: &mut Lexer<Token>) -> String {
     chars.collect()
 }
 
-#[derive(Debug, Clone, Error)]
+#[derive(Error, Debug, Clone, PartialEq)]
 pub enum ErrorKind {
     #[error("Invalid integer format")]
-    ParseIntError(ParseIntError),
+    ParseIntError(#[from] ParseIntError),
     #[error("Syntax error")]
     SyntaxError,
     #[error("Invalid opcode `{0}`")]
     InvalidOpcode(String),
     #[error("Invalid operand")]
     InvalidOperand,
+}
+
+impl Default for ErrorKind {
+    fn default() -> Self {
+        Self::SyntaxError
+    }
 }
 
 pub type ErrorMap = HashMap<Span, ErrorKind>;
@@ -73,19 +75,9 @@ impl LinearMemory {
     }
 }
 
-#[derive(Default, Debug, Clone)]
-pub struct Extras {
-    pub errors: ErrorMap,
-}
-
-impl Extras {
-    pub fn push_error(&mut self, span: Range<usize>, err: ErrorKind) -> &mut ErrorKind {
-        self.errors.entry(span).or_insert(err)
-    }
-}
-
 #[derive(Logos, Debug, Clone, PartialEq, Eq)]
-#[logos(extras = Extras)]
+#[logos(skip r"[ \t]")]
+#[logos(error = ErrorKind)]
 pub enum Token {
     #[regex(r"//[^\r\n]*", logos::skip)]
     Comment,
@@ -113,17 +105,11 @@ pub enum Token {
     #[regex(r"\(\w*\)", pop_parens)]
     Indirect(String),
 
-    #[regex(r"[ \t]", logos::skip)]
-    Whitespace,
-
     #[regex(r"(?:\r\n)|\n")]
     Newline,
 
     #[regex(r"\[[0-9]+;[0-9]+\]", LinearMemory::from_lexer)]
     LinearMemory(LinearMemory),
-
-    #[error]
-    Error,
 }
 
 impl From<Token> for Op {
@@ -150,28 +136,33 @@ pub type Span = Range<usize>;
 pub type WithSpan<T> = (Span, T);
 
 #[derive(Debug, Clone)]
-pub struct TokensWithSpan<'a>(pub Lexer<'a, Token>);
+pub struct TokensWithError<'a>(pub Lexer<'a, Token>);
 
-impl<'a> TokensWithSpan<'a> {
+impl TokensWithError<'_> {
     pub fn lines(mut self) -> (Vec<Vec<WithSpan<Token>>>, ErrorMap) {
+        let mut errors = ErrorMap::new();
         let acc = self.by_ref().fold(vec![Vec::new()], |mut acc, (r, t)| {
-            if matches!(t, Token::Newline) {
-                acc.push(Vec::new());
-            } else {
-                acc.last_mut().unwrap().push((r, t));
+            match t {
+                Ok(Token::Newline) => {
+                    acc.push(Vec::new());
+                }
+                Ok(t) => {
+                    acc.last_mut().unwrap().push((r, t));
+                }
+                Err(e) => {
+                    errors.entry(r).or_insert(e);
+                }
             }
 
             acc
         });
 
-        let errs = self.0.extras.errors;
-
-        (acc, errs)
+        (acc, errors)
     }
 }
 
-impl<'a> Iterator for TokensWithSpan<'a> {
-    type Item = WithSpan<Token>;
+impl Iterator for TokensWithError<'_> {
+    type Item = WithSpan<Result<Token, ErrorKind>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().map(|token| (self.0.span(), token))

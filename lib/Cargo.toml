@@ -18,7 +18,7 @@ extended = []
 compile = ["serde"]
 
 [dependencies]
-logos = "0.12"
+logos = "0.15"
 log = "0.4"
 thiserror = "1"
 
