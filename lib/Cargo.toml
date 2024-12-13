@@ -20,7 +20,7 @@ compile = ["serde"]
 [dependencies]
 logos = "0.15"
 log = "0.4"
-thiserror = "1"
+thiserror = "2"
 
 [dependencies.serde]
 version = "1"
