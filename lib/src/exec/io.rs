@@ -58,6 +58,11 @@ inst!(
 
                 ctx.io.write.write_all(&[out])?;
             }
+            MultiOp(ops) if ops.iter().all(inst::Op::is_usizeable) => {
+                for op in ops {
+                    out(ctx, op)?;
+                }
+            }
             _ => return Err(InvalidOperand),
         }
     }
