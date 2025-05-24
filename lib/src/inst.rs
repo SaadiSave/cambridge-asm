@@ -230,7 +230,7 @@ macro_rules! inst_set {
 ///
 /// For an example, go to this [file](https://github.com/SaadiSave/cambridge-asm/blob/main/cambridge-asm/tests/int_test.rs)
 ///
-/// Due to language limitations, do not use this macro within the same file twice
+/// Due to language limitations (no concat_ident!), do not use this macro within the same file twice
 #[macro_export]
 macro_rules! extend {
     ($(#[$outer:meta])* $vis:vis $name:ident extends $parent:ident { $( $inst:ident => $func:expr,)+ }) => {
@@ -239,7 +239,7 @@ macro_rules! extend {
     ($(#[$outer:meta])* $vis:vis $name:ident extends $parent:ident $using:item { $( $inst:ident => $func:expr,)+ }) => {
         $(#[$outer])*
         $vis struct $name {
-            __private: extend_priv::Combined<$parent>,
+            __private: extend_priv::Combined,
         }
 
         $(#[$outer])*
@@ -295,16 +295,12 @@ macro_rules! extend {
                 }
             }
 
-            pub enum Combined<T>
-            where
-                T: $crate::inst::InstSet,
-                <T as std::str::FromStr>::Err: std::fmt::Display,
-            {
+            pub enum Combined {
                 Extension($name),
-                Parent(T),
+                Parent($parent),
             }
 
-            impl Combined<$parent> {
+            impl Combined {
                 const LAST_INST_MARKER: u64 = $name::LAST_INST_MARKER as u64;
 
                 pub fn id(&self) -> u64 {
@@ -330,7 +326,7 @@ macro_rules! extend {
                 }
             }
 
-            impl std::str::FromStr for Combined<$parent> {
+            impl std::str::FromStr for Combined {
                 type Err = String;
 
                 fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -344,7 +340,7 @@ macro_rules! extend {
                 }
             }
 
-            impl std::fmt::Display for Combined<$parent> {
+            impl std::fmt::Display for Combined {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     match self {
                         Self::Extension(e) => write!(f, "{e}"),
@@ -359,7 +355,7 @@ macro_rules! extend {
             type Err = String;
 
             fn from_str(s: &str) -> Result<Self, Self::Err> {
-                Ok($name { __private: s.to_uppercase().as_str().parse::<extend_priv::Combined<_>>()? })
+                Ok($name { __private: s.to_uppercase().as_str().parse::<extend_priv::Combined>()? })
             }
         }
 
