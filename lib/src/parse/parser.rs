@@ -271,19 +271,26 @@ where
         let mut ir = insts.into_iter().enumerate().collect::<Vec<_>>();
 
         for (to, from, multiop_idx) in links {
-            match &ir[from].1.op {
+            match &mut ir[from].1.op {
                 Op::MultiOp(ops) => {
-                    let mut ops = ops.clone();
-                    // unwrap ok because mutiop_idx will always exist if operand is multiop
-                    ops[multiop_idx.unwrap()] = Op::Addr(to);
-                    ir[from].1.op = Op::MultiOp(ops);
+                    for (idx, op) in ops.iter_mut().enumerate() {
+                        if idx == multiop_idx.unwrap() {
+                            match op {
+                                Op::Addr(_) | Op::Fail(_) => *op = Op::Addr(to),
+                                Op::Indirect(op) => {
+                                    if matches!(op.as_ref(), Op::Addr(_) | Op::Fail(_)) {
+                                        *op.as_mut() = Op::Addr(to);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
                 }
                 Op::Addr(_) | Op::Fail(_) => ir[from].1.op = Op::Addr(to),
-                Op::Indirect(_) => {
-                    if let Op::Indirect(op) = &mut ir[from].1.op {
-                        if matches!(op.as_ref(), Op::Addr(_) | Op::Fail(_)) {
-                            *op.as_mut() = Op::Addr(to);
-                        }
+                Op::Indirect(op) => {
+                    if matches!(op.as_ref(), Op::Addr(_) | Op::Fail(_)) {
+                        *op.as_mut() = Op::Addr(to);
                     }
                 }
                 _ => {}
@@ -381,15 +388,27 @@ where
             let cir = &mut prog[progaddr];
 
             match cir.inst.op {
-                Op::MultiOp(ref mut ops) if multiop_idx.is_some() => {
-                    ops[multiop_idx.unwrap()] = Op::Addr(uid);
-                }
-                Op::Fail(_) => cir.inst.op = Op::Addr(uid),
-                Op::Indirect(_) => {
-                    if let Op::Indirect(op) = &mut cir.inst.op {
-                        if matches!(op.as_ref(), Op::Fail(_)) {
-                            *op.as_mut() = Op::Addr(uid);
+                Op::MultiOp(ref mut ops) => {
+                    for (idx, op) in ops.iter_mut().enumerate() {
+                        if idx == multiop_idx.unwrap() {
+                            match op {
+                                Op::Fail(_) => *op = Op::Addr(uid),
+                                Op::Indirect(_) => {
+                                    if let Op::Indirect(op) = op {
+                                        if matches!(op.as_ref(), Op::Fail(_)) {
+                                            *op.as_mut() = Op::Addr(uid);
+                                        }
+                                    }
+                                }
+                                _ => {}
+                            }
                         }
+                    }
+                }
+                ref mut op @ Op::Fail(_) => *op = Op::Addr(uid),
+                Op::Indirect(ref mut op) => {
+                    if matches!(op.as_ref(), Op::Fail(_)) {
+                        *op.as_mut() = Op::Addr(uid);
                     }
                 }
                 _ => {}

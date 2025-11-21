@@ -204,6 +204,16 @@ impl Context {
         }
     }
 
+    /// # Panics
+    /// If `op` is not an address. To avoid this, check `op` using [`Op::is_address`].
+    pub fn as_address(&self, op: &Op) -> RtResult<usize> {
+        match op {
+            &Op::Addr(addr) => Ok(addr),
+            Op::Indirect(op) if op.is_read_write() => self.read(op),
+            _ => unreachable!(),
+        }
+    }
+
     /// Modify the given operand in the context if it is writeable
     ///
     /// # Arguments

@@ -34,10 +34,7 @@ impl Op {
     }
 
     pub fn is_register(&self) -> bool {
-        match self {
-            Op::Indirect(op) if op.is_register() => true,
-            _ => matches!(self, Op::Acc | Op::Ix | Op::Ar | Op::Gpr(_)),
-        }
+        matches!(self, Op::Acc | Op::Ix | Op::Ar | Op::Gpr(_))
     }
 
     pub fn is_read_write(&self) -> bool {
@@ -50,6 +47,10 @@ impl Op {
 
     pub fn is_usizeable(&self) -> bool {
         self.is_read_write() || matches!(self, Op::Literal(_))
+    }
+
+    pub fn is_address(&self) -> bool {
+        matches!(self, Op::Addr(_) | Op::Indirect(_)) && self.is_read_write()
     }
 }
 
