@@ -201,9 +201,9 @@ fn compile(
 
     let ron = |w: File, v: &CompiledProg| {
         if minify {
-            ron::ser::to_writer(w, v)
+            ron::Options::default().to_io_writer(w, v)
         } else {
-            ron::ser::to_writer_pretty(w, v, ron::ser::PrettyConfig::default())
+            ron::Options::default().to_io_writer_pretty(w, v, ron::ser::PrettyConfig::default())
         }
     };
 
