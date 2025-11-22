@@ -10,7 +10,7 @@
     clippy::must_use_candidate,
     clippy::items_after_test_module
 )]
-#![cfg_attr(docsrs, feature(doc_auto_cfg, doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 #[macro_use]
 extern crate log;
