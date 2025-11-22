@@ -75,6 +75,8 @@ extend! {
         CALL => io::call,
         RET => io::ret,
         NOP => io::nop,
+        PRINT => io::print,
+        READ => io::read,
     }
 }
 

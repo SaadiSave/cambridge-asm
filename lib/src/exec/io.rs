@@ -52,6 +52,34 @@ inst!(
 );
 
 inst!(
+    /// Print bytes from memory to stdout
+    ///
+    /// # Syntax
+    /// `PRINT [addr], [n:lit]` - print `n` bytes from memory to stdout starting at address `addr`
+    #[cfg(feature = "extended")]
+    pub print (ctx, op) {
+        match op {
+            MultiOp(ops) => match &ops[..] {
+                &[ref addr, Literal(n)] if addr.is_address() => {
+                    let addr = ctx.as_address(addr)?;
+                    let mut buf = Vec::with_capacity(n);
+
+                    for address in addr..addr+n {
+                        let byte = ctx.read(&Addr(address))?;
+
+                        buf.push(byte.try_into().map_err(|_| InvalidUtf8Byte(byte))?);
+                    }
+
+                    ctx.io.write.write_all(&buf)?;
+                }
+                _ => return Err(InvalidMultiOp),
+            }
+            _ => return Err(InvalidOperand)
+        }
+    }
+);
+
+inst!(
     /// Input
     ///
     /// Read a single character from stdin, convert to ASCII code and
@@ -80,6 +108,33 @@ inst!(
                 ctx.modify(dest, |d| *d = buf[0] as usize)?;
             }
             _ => return Err(InvalidOperand),
+        }
+    }
+);
+
+inst!(
+    /// Read n bytes into memory
+    ///
+    /// # Syntax
+    /// `READ [addr], [n:lit]` - read `n` bytes from stdin to memory starting at address `addr`
+    #[cfg(feature = "extended")]
+    pub read (ctx, op) {
+        match op {
+            MultiOp(ops) => match &ops[..] {
+                &[ref start, Literal(n)] if start.is_address() => {
+                    let start = ctx.as_address(start)?;
+
+                    let mut buf = Vec::with_capacity(n);
+
+                    ctx.io.read.read_exact(&mut buf)?;
+
+                    for (start, byte) in (start..start+n).zip(buf) {
+                        ctx.modify(&Addr(start), |d| *d = byte as usize)?;
+                    }
+                }
+                _ => return Err(InvalidMultiOp)
+            }
+            _ => return Err(InvalidOperand)
         }
     }
 );
