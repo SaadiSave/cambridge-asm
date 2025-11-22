@@ -368,6 +368,7 @@ impl Executor {
         T: InstSet,
         <T as FromStr>::Err: Display,
     {
+        #[allow(clippy::needless_continue)]
         let err = loop {
             match self.step::<T>() {
                 Status::Complete => break None,

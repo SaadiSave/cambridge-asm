@@ -216,7 +216,7 @@ fn compile(
         Ron => ron(file, &compiled)?,
         Yaml => yaml(file, &compiled)?,
         Cbor => cbor(file, &compiled)?,
-    };
+    }
 
     Ok(())
 }

@@ -202,7 +202,7 @@ where
                 match mem {
                     MemEnum::Linear(mems) => acc.extend(mems),
                     MemEnum::One(mem) => acc.push(mem),
-                };
+                }
 
                 acc
             });
@@ -294,7 +294,7 @@ where
                     }
                 }
                 _ => {}
-            };
+            }
         }
 
         ir.into_iter()

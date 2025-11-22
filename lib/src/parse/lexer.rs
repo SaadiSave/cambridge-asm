@@ -32,22 +32,17 @@ fn pop_parens(lex: &mut Lexer<Token>) -> String {
     chars.collect()
 }
 
-#[derive(Error, Debug, Clone, PartialEq)]
+#[derive(Default, Error, Debug, Clone, PartialEq)]
 pub enum ErrorKind {
     #[error("Invalid integer format")]
     ParseIntError(#[from] ParseIntError),
     #[error("Syntax error")]
+    #[default]
     SyntaxError,
     #[error("Invalid opcode `{0}`")]
     InvalidOpcode(String),
     #[error("Invalid operand")]
     InvalidOperand,
-}
-
-impl Default for ErrorKind {
-    fn default() -> Self {
-        Self::SyntaxError
-    }
 }
 
 pub type ErrorMap = HashMap<Span, ErrorKind>;

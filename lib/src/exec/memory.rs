@@ -23,7 +23,7 @@ impl Memory {
         Self(mem)
     }
 
-    pub fn iter(&self) -> Iter<usize, usize> {
+    pub fn iter(&'_ self) -> Iter<'_, usize, usize> {
         self.0.iter()
     }
 

@@ -231,7 +231,7 @@ macro_rules! inst_set {
 ///
 /// For an example, go to this [file](https://github.com/SaadiSave/cambridge-asm/blob/main/cambridge-asm/tests/int_test.rs)
 ///
-/// Due to language limitations (no concat_ident!), do not use this macro within the same file twice
+/// Due to language limitations (no `concat_ident!`), do not use this macro within the same file twice
 #[macro_export]
 macro_rules! extend {
     ($(#[$outer:meta])* $vis:vis $name:ident extends $parent:ident { $( $inst:ident => $func:expr,)+ }) => {
