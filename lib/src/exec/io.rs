@@ -32,36 +32,19 @@ inst!(
     /// # Syntax
     /// 1. `OUT` - output `ACC`
     /// 2. `OUT [lit | reg | addr]`
+    /// 3. `OUT [lit | reg | addr], ...` - output value in all ops as bytes
     pub out (ctx, op) {
         match op {
             Null => {
-                let x = ctx.acc;
-
-                if x > 255 {
-                    return Err(InvalidUtf8Byte(x));
-                }
-
-                #[allow(clippy::cast_possible_truncation)]
-                let out = x as u8;
-
-                ctx.io.write.write_all(&[out])?;
+                ctx.io.write.write_all(&[ctx.acc.try_into().map_err(|_| InvalidUtf8Byte(ctx.acc))?])?;
             }
             src if src.is_usizeable() => {
                 let src = ctx.read(src)?;
 
-                if src > 255 {
-                    return Err(InvalidUtf8Byte(src));
-                }
-
-                #[allow(clippy::cast_possible_truncation)]
-                let out = src as u8;
-
-                ctx.io.write.write_all(&[out])?;
+                ctx.io.write.write_all(&[src.try_into().map_err(|_| InvalidUtf8Byte(src))?])?;
             }
-            MultiOp(ops) if ops.iter().all(inst::Op::is_usizeable) => {
-                for op in ops {
-                    out(ctx, op)?;
-                }
+            MultiOp(ops) if ops.iter().all(inst::Op::is_usizeable) => for op in ops {
+                out(ctx, op)?;
             }
             _ => return Err(InvalidOperand),
         }
@@ -71,15 +54,15 @@ inst!(
 inst!(
     /// Input
     ///
-    /// Read a single character from input, convert to ASCII code and
+    /// Read a single character from stdin, convert to ASCII code and
     /// store
     ///
     /// # Panics
-    /// If error is encountered when reading input
+    /// If error is encountered when reading stdin
     ///
     /// # Syntax
-    /// 1. `INP` - read to `ACC`
-    /// 2. `INP [reg | addr]`
+    /// 1. `IN` - read to `ACC`
+    /// 2. `IN [reg | addr]`
     pub inp (ctx, op) {
         match op {
             Null => {
