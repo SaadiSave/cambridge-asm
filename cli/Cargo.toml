@@ -1,6 +1,6 @@
 [package]
 name = "cambridge-asm-cli"
-version = "0.16.0"
+version = "0.17.0"
 authors = ["SaadiSave <https://github.com/SaadiSave>"]
 edition = "2021"
 license = "MPL-2.0"
@@ -24,7 +24,7 @@ anyhow = "1"
 ciborium = "0.2.2"
 
 [dependencies.cambridge-asm]
-version = "0.22.0"
+version = "0.23.0"
 default-features = false
 features = ["compile"]
 
