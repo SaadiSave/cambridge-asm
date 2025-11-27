@@ -6,7 +6,7 @@ edition = "2021"
 license = "MPL-2.0"
 description = "Run pseudoassembly from Cambridge International syllabus 9618"
 repository = "https://github.com/SaadiSave/cambridge-asm"
-rust-version = "1.70"
+rust-version = "1.81"
 
 [[bin]]
 name = "casm"

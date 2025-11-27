@@ -242,7 +242,7 @@ fn set_log_level(v: u8) {
 }
 
 #[cfg(not(debug_assertions))]
-fn handle_panic(info: &std::panic::PanicInfo) {
+fn handle_panic(info: &std::panic::PanicHookInfo) {
     if let Some(l) = info.location() {
         println!(
             "Program panicked (crashed). Panic occurred at {}:{}",
