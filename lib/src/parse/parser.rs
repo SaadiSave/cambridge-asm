@@ -12,7 +12,6 @@ use crate::{
 };
 use logos::Logos;
 use std::{
-    collections::BTreeMap,
     fmt::{Debug, Display},
     marker::PhantomData,
     ops::Range,
@@ -224,219 +223,292 @@ where
         (inst_spans, insts, mems)
     }
 
-    fn process_insts(&mut self, insts: Vec<Inst<I>>) -> Vec<InstIr<I>> {
-        fn op_addr_eq(op: &Op, addr: &Addr) -> bool {
-            match (op, addr) {
-                (Op::Addr(x), Addr::Bare(bare)) => x == bare,
-                (Op::Fail(x), Addr::Label(label)) => x == label,
-                (Op::Indirect(op), addr) => op_addr_eq(op.as_ref(), addr),
-                _ => false,
-            }
-        }
-
-        self.debug_info
-            .prog
-            .extend(
-                insts
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(idx, Inst { addr, .. })| {
-                        addr.as_ref().map(|a| (idx, a.as_dbg_string()))
-                    }),
-            );
-
-        let mut links = Vec::new();
-
-        for (i, Inst { addr, .. }) in insts.iter().enumerate() {
-            for (j, Inst { op, .. }) in insts.iter().enumerate() {
-                if let Some(addr) = addr {
-                    match op {
-                        Op::MultiOp(vec) => {
-                            for (idx, op) in vec.iter().enumerate() {
-                                if op_addr_eq(op, addr) {
-                                    links.push((i, j, Some(idx)));
-                                }
-                            }
-                        }
-                        _ => {
-                            if op_addr_eq(op, addr) {
-                                links.push((i, j, None));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        let mut ir = insts.into_iter().enumerate().collect::<Vec<_>>();
-
-        for (to, from, multiop_idx) in links {
-            match &mut ir[from].1.op {
-                Op::MultiOp(ops) => {
-                    for (idx, op) in ops.iter_mut().enumerate() {
-                        if idx == multiop_idx.unwrap() {
-                            match op {
-                                Op::Addr(_) | Op::Fail(_) => *op = Op::Addr(to),
-                                Op::Indirect(op) => {
-                                    if matches!(op.as_ref(), Op::Addr(_) | Op::Fail(_)) {
-                                        *op.as_mut() = Op::Addr(to);
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                }
-                Op::Addr(_) | Op::Fail(_) => ir[from].1.op = Op::Addr(to),
-                Op::Indirect(op) => {
-                    if matches!(op.as_ref(), Op::Addr(_) | Op::Fail(_)) {
-                        *op.as_mut() = Op::Addr(to);
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        ir.into_iter()
-            .map(|(idx, Inst { opcode, op, .. })| InstIr::new(idx, opcode, op))
-            .collect()
-    }
-
-    fn process_mems(&mut self, mems: Vec<Mem>, prog: &mut [InstIr<I>]) -> Vec<MemIr> {
-        fn op_label_eq(op: &Op, label: &str) -> bool {
-            match op {
-                Op::Fail(x) => x == label,
-                Op::Indirect(op) => op_label_eq(op.as_ref(), label),
-                _ => false,
-            }
-        }
-
-        let mut label_mems = Vec::new();
-        let mut raw_mems = Vec::new();
-
-        for Mem { addr, data } in mems {
-            match addr {
-                Addr::Bare(bare) => raw_mems.push((bare, data)),
-                Addr::Label(label) => label_mems.push((label, data)),
-            }
-        }
-
-        let mut links = vec![];
-
-        for (i, (addr, _)) in label_mems.iter().enumerate() {
-            for (
-                j,
-                InstIr {
-                    inst: inst::Inst { op, .. },
-                    ..
-                },
-            ) in prog.iter().enumerate()
-            {
-                match op {
-                    Op::MultiOp(vec) => {
-                        for (idx, op) in vec.iter().enumerate() {
-                            if op_label_eq(op, addr) {
-                                links.push((i, j, Some(idx)));
-                            }
-                        }
-                    }
-                    _ => {
-                        if op_label_eq(op, addr) {
-                            links.push((i, j, None));
-                        }
-                    }
-                }
-            }
-        }
-
-        let unused_addrs: Vec<_> = {
-            let mut used_addr = raw_mems.iter().map(|x| x.0).collect::<Vec<_>>();
-
-            used_addr.sort_unstable();
-
-            let (first, last) = if used_addr.is_empty() {
-                (0, 0)
-            } else {
-                // unwrap ok because vector is guaranteed to not be empty
-                (
-                    used_addr.first().copied().unwrap(),
-                    used_addr.last().copied().unwrap(),
-                )
-            };
-
-            (0..first).chain(last + 1..).take(links.len()).collect()
-        };
-
-        assert!(
-            unused_addrs.len() >= links.len(),
-            "One of the memory addresses is too big"
-        );
-
-        let mut newlinks = BTreeMap::new();
-
-        // linking
-        for ((memaddr, progaddr, multiop_idx), uid) in links.into_iter().zip(unused_addrs) {
-            let (addr, data) = &label_mems[memaddr];
-
-            let uid = newlinks.entry(addr).or_insert((uid, *data)).0;
-
-            self.debug_info
-                .mem
-                .entry(uid)
-                .or_insert_with(|| addr.clone());
-
-            let cir = &mut prog[progaddr];
-
-            match cir.inst.op {
-                Op::MultiOp(ref mut ops) => {
-                    for (idx, op) in ops.iter_mut().enumerate() {
-                        if idx == multiop_idx.unwrap() {
-                            match op {
-                                Op::Fail(_) => *op = Op::Addr(uid),
-                                Op::Indirect(_) => {
-                                    if let Op::Indirect(op) = op {
-                                        if matches!(op.as_ref(), Op::Fail(_)) {
-                                            *op.as_mut() = Op::Addr(uid);
-                                        }
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                }
-                ref mut op @ Op::Fail(_) => *op = Op::Addr(uid),
-                Op::Indirect(ref mut op) => {
-                    if matches!(op.as_ref(), Op::Fail(_)) {
-                        *op.as_mut() = Op::Addr(uid);
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        newlinks
-            .values()
-            .copied()
-            .chain(raw_mems)
-            .map(|(addr, data)| MemIr { addr, data })
-            .collect()
-    }
-
     #[allow(clippy::type_complexity)]
     pub fn parse(mut self) -> Result<(Vec<InstIr<I>>, Vec<MemIr>, DebugInfo), ErrorMap> {
-        let (inst_spans, insts, mems) = self.get_insts_and_mems();
+        let (inst_spans, mut insts, mut mems) = self.get_insts_and_mems();
 
         self.debug_info.inst_spans = inst_spans;
 
-        let mut inst_ir = self.process_insts(insts);
-
-        let mem_ir = self.process_mems(mems, &mut inst_ir);
+        linker::Linker::new(&mut insts, &mut mems).link();
 
         if self.err.is_empty() {
-            Ok((inst_ir, mem_ir, self.debug_info))
+            Ok((
+                insts
+                    .into_iter()
+                    .map(InstIr::try_from)
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap(),
+                mems.into_iter()
+                    .map(MemIr::try_from)
+                    .collect::<Result<Vec<_>, _>>()
+                    .unwrap(),
+                self.debug_info,
+            ))
         } else {
             Err(self.err)
+        }
+    }
+}
+
+mod linker {
+    use super::{Addr, Debug, Display, Inst, Mem, Op};
+    use crate::inst::InstSet;
+    use std::{
+        collections::{HashMap, HashSet},
+        ops::Deref,
+    };
+
+    #[derive(Debug, Clone, Copy)]
+    enum Src {
+        Prog(usize),
+        Mem(usize),
+    }
+
+    impl From<Src> for Op {
+        fn from(value: Src) -> Self {
+            match value {
+                Src::Mem(addr) | Src::Prog(addr) => Op::Addr(addr),
+            }
+        }
+    }
+
+    #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash)]
+    enum Instance {
+        MultiOp(usize, usize),
+        Single(usize),
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct SymbolData {
+        source: Option<Src>,
+        instances: HashSet<Instance>,
+    }
+
+    #[derive(Debug, Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash)]
+    enum Symbol {
+        Label(&'static str),
+        Addr(usize),
+    }
+
+    impl From<&Addr> for Symbol {
+        fn from(value: &Addr) -> Self {
+            match value {
+                &Addr::Bare(addr) => Self::Addr(addr),
+                Addr::Label(label) => label.into(),
+            }
+        }
+    }
+
+    impl<'a> From<&'a String> for Symbol {
+        fn from(value: &'a String) -> Self {
+            // leak it so that symbol copies are cheap
+            Self::Label(Box::leak(value.clone().into_boxed_str()))
+        }
+    }
+
+    impl Display for Symbol {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Symbol::Label(s) => Display::fmt(&s, f),
+                Symbol::Addr(addr) => Display::fmt(&addr, f),
+            }
+        }
+    }
+
+    impl TryFrom<&Op> for Symbol {
+        type Error = ();
+
+        fn try_from(value: &Op) -> Result<Self, Self::Error> {
+            match value {
+                &Op::Addr(addr) => Ok(Symbol::Addr(addr)),
+                Op::Fail(s) => Ok(s.into()),
+                Op::Indirect(op) => op.deref().try_into(),
+                _ => Err(()),
+            }
+        }
+    }
+
+    type SymbolTableInner = HashMap<Symbol, SymbolData>;
+
+    #[derive(Debug, Clone)]
+    struct SymbolTable(SymbolTableInner);
+
+    impl IntoIterator for SymbolTable {
+        type Item = (Src, HashSet<Instance>);
+        type IntoIter = std::iter::Map<
+            <SymbolTableInner as IntoIterator>::IntoIter,
+            fn(<SymbolTableInner as IntoIterator>::Item) -> Self::Item,
+        >;
+
+        fn into_iter(self) -> Self::IntoIter {
+            self.0
+                .into_iter()
+                .map(|(sym, SymbolData { source, instances })| {
+                    (
+                        source.unwrap_or_else(|| panic!("{sym} is undefined")),
+                        instances,
+                    )
+                })
+        }
+    }
+
+    impl SymbolTable {
+        pub fn new() -> Self {
+            Self(HashMap::new())
+        }
+
+        pub fn add_instance(&mut self, symbol: Symbol, instance: Instance) {
+            self.0
+                .entry(symbol)
+                .and_modify(|SymbolData { instances, .. }| {
+                    (instances).insert(instance);
+                })
+                .or_insert_with(|| {
+                    let mut instances = HashSet::new();
+                    instances.insert(instance);
+                    SymbolData {
+                        source: None,
+                        instances,
+                    }
+                });
+        }
+
+        pub fn add_src(&mut self, symbol: Symbol, src: Src) {
+            self.0
+                .entry(symbol)
+                .and_modify(|SymbolData { source, .. }| {
+                    if source.is_some() {
+                        panic!("{symbol} is defined multiple times");
+                    } else {
+                        *source = Some(src);
+                    }
+                }); // do nothing if symbol doesn't exist
+        }
+    }
+
+    impl Op {
+        fn link(&mut self, src: Src, mop_idx: Option<usize>) {
+            match self {
+                Op::Addr(_) | Op::Fail(_) => *self = src.into(),
+                Op::MultiOp(ops) if mop_idx.is_some() => ops[mop_idx.unwrap()] = src.into(),
+                Op::Indirect(op) => op.link(src, mop_idx),
+                _ => panic!("Symbol linking failed. Please report this error.\nop: {self:?}\nsrc: {src:?}\nmop_idx: {mop_idx:?}"),
+            }
+        }
+    }
+
+    pub struct Linker<'inst, 'mem, I> {
+        symbol_table: SymbolTable,
+        used_addrs: HashSet<usize>,
+        program: &'inst mut [Inst<I>],
+        memory: &'mem mut [Mem],
+    }
+
+    impl<'inst, 'mem, I> Linker<'inst, 'mem, I>
+    where
+        I: InstSet,
+        <I as std::str::FromStr>::Err: Display,
+    {
+        pub fn new(prog: &'inst mut [Inst<I>], mem: &'mem mut [Mem]) -> Self {
+            Self {
+                symbol_table: SymbolTable::new(),
+                used_addrs: HashSet::new(),
+                program: prog,
+                memory: mem,
+            }
+        }
+
+        fn find_symbols(&mut self) {
+            for (idx, Inst { op, .. }) in self.program.iter().enumerate() {
+                match op {
+                    Op::MultiOp(ops) => {
+                        for (mop_idx, sym) in ops
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(idx, op)| Symbol::try_from(op).map(|sym| (idx, sym)).ok())
+                        {
+                            self.symbol_table
+                                .add_instance(sym, Instance::MultiOp(idx, mop_idx));
+                        }
+                    }
+                    op => {
+                        // Failure irrelevant
+                        if let Ok(sym) = Symbol::try_from(op) {
+                            self.symbol_table.add_instance(sym, Instance::Single(idx));
+                        }
+                    }
+                }
+            }
+        }
+
+        fn find_symbol_sources(&mut self) {
+            // find which of the symbols are instruction addresses
+            for (idx, Inst { addr, .. }) in self.program.iter().enumerate() {
+                if let Some(addr) = addr {
+                    // add_src automatically does nothing if symbol is absent
+                    self.symbol_table.add_src(addr.into(), Src::Prog(idx));
+                }
+            }
+
+            // leave explicit memory addresses untouched
+            for addr in self.memory.iter().filter_map(|Mem { addr, .. }| {
+                if let &Addr::Bare(addr) = addr {
+                    Some(addr)
+                } else {
+                    None
+                }
+            }) {
+                self.symbol_table
+                    .add_src(Symbol::Addr(addr), Src::Mem(addr));
+                assert!(
+                    self.used_addrs.insert(addr),
+                    "{addr:?} is used multiple times"
+                );
+            }
+        }
+
+        fn readdress(&mut self) {
+            for (idx, Inst { addr, .. }) in self.program.iter_mut().enumerate() {
+                *addr = Some(Addr::Bare(idx));
+            }
+
+            let mut counter = 0;
+
+            for addr in self.memory.iter_mut().filter_map(|Mem { addr, .. }| {
+                if matches!(addr, Addr::Label(_)) {
+                    Some(addr)
+                } else {
+                    None
+                }
+            }) {
+                // find unused address
+                while self.used_addrs.contains(&counter) {
+                    counter += 1;
+                }
+                self.symbol_table
+                    .add_src(Symbol::from(&addr.clone()), Src::Mem(counter));
+
+                *addr = Addr::Bare(counter);
+
+                counter += 1;
+            }
+        }
+
+        pub fn link(mut self) {
+            self.find_symbols();
+            self.find_symbol_sources();
+            self.readdress();
+
+            for (src, instances) in self.symbol_table {
+                for instance in instances {
+                    match instance {
+                        Instance::MultiOp(idx, mop_idx) => {
+                            self.program[idx].op.link(src, Some(mop_idx));
+                        }
+                        Instance::Single(idx) => self.program[idx].op.link(src, None),
+                    }
+                }
+            }
         }
     }
 }
@@ -445,15 +517,6 @@ where
 pub enum Addr {
     Bare(usize),
     Label(String),
-}
-
-impl Addr {
-    fn as_dbg_string(&self) -> String {
-        match self {
-            Addr::Label(label) => label.clone(),
-            Addr::Bare(bare) => bare.to_string(),
-        }
-    }
 }
 
 impl Display for Addr {
@@ -472,6 +535,22 @@ where
 {
     pub addr: usize,
     pub inst: inst::Inst<I>,
+}
+
+impl<I> TryFrom<Inst<I>> for InstIr<I>
+where
+    I: InstSet,
+    <I as FromStr>::Err: Display,
+{
+    type Error = ();
+
+    fn try_from(Inst { addr, opcode, op }: Inst<I>) -> Result<Self, Self::Error> {
+        if let Some(Addr::Bare(addr)) = addr {
+            Ok(Self::new(addr, opcode, op))
+        } else {
+            Err(())
+        }
+    }
 }
 
 impl<I> InstIr<I>
@@ -553,4 +632,16 @@ impl From<(Addr, usize)> for Mem {
 pub struct MemIr {
     pub addr: usize,
     pub data: usize,
+}
+
+impl TryFrom<Mem> for MemIr {
+    type Error = ();
+
+    fn try_from(Mem { addr, data }: Mem) -> Result<Self, Self::Error> {
+        if let Addr::Bare(addr) = addr {
+            Ok(Self { addr, data })
+        } else {
+            Err(())
+        }
+    }
 }

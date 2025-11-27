@@ -57,20 +57,34 @@ mod custom {
     use std::io::Write;
 
     inst! {
-        from (ctx, op) {
+        sqrtf (ctx, op) {
             match op {
-                Fail(from) => writeln!(ctx.io.write, "From {from}")?,
-                Null => writeln!(ctx.io.write, "From Pseudoassembly")?,
+                op if op.is_usizeable() => {
+                    #[cfg(target_pointer_width = "32")]
+                    let float = f32::from_bits(ctx.read(op)? as _);
+
+                    #[cfg(target_pointer_width = "64")]
+                    let float = f64::from_bits(ctx.read(op)? as _);
+
+                    ctx.acc = float.sqrt().to_bits() as usize;
+                },
                 _ => return Err(RtError::InvalidOperand)
             }
         }
     }
 
     inst! {
-        greet (ctx, op) {
+        outf (ctx, op) {
             match op {
-                Fail(msg) => writeln!(ctx.io.write, "Hello, {msg}!")?,
-                Null => writeln!(ctx.io.write, "Hello!")?,
+                op if op.is_usizeable() => {
+                    #[cfg(target_pointer_width = "32")]
+                    let float = f32::from_bits(ctx.read(op)? as _);
+
+                    #[cfg(target_pointer_width = "64")]
+                    let float = f64::from_bits(ctx.read(op)? as _);
+
+                    writeln!(ctx.io.write, "{float}")?;
+                }
                 _ => return Err(RtError::InvalidOperand)
             }
         }
@@ -78,19 +92,28 @@ mod custom {
 
     inst_set! {
         Custom {
-            GREET => greet,
-            FROM => from,
+            SQRTF => sqrtf,
+            OUTF => outf,
             END => cambridge_asm::exec::io::end,
         }
     }
 
     #[test]
     fn custom() {
-        const PROG: &str = r#"GREET
-FROM Pseudoassembly
-END
+        #[cfg(target_pointer_width = "64")]
+        const PROG: &str = r#"sqrtf #x4000000000000000
+outf acc
+end
 
-NONE:
+none:
+"#;
+
+        #[cfg(target_pointer_width = "32")]
+        const PROG: &str = r#"sqrtf #0x40000000
+outf acc
+end
+
+none:
 "#;
 
         let out = TestStdio::new(vec![]);
@@ -104,6 +127,12 @@ NONE:
                 });
         e.exec::<Custom>();
 
-        assert_eq!(out.to_vec(), b"Hello!\nFrom Pseudoassembly\n");
+        #[cfg(target_pointer_width = "32")]
+        assert!(f32::from_bits(e.ctx.acc as _) >= 1.4);
+
+        #[cfg(target_pointer_width = "64")]
+        assert!(f64::from_bits(e.ctx.acc as _) >= 1.4);
+
+        println!("{}", String::from_utf8_lossy(out.to_vec().as_slice()));
     }
 }
